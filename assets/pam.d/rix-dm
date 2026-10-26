@@ -1,0 +1,10 @@
+#%PAM-1.0
+# Arch/system-login policy. The installer adapts this to the distribution's
+# common-* policy when needed; authentication always uses the host PAM stack.
+auth       requisite pam_nologin.so
+auth       include   system-local-login
+account    include   system-local-login
+session    include   system-local-login
+# The display manager requires logind registration; the included stack may
+# already provide an optional pam_systemd, but this requirement fails closed.
+session    required  pam_systemd.so

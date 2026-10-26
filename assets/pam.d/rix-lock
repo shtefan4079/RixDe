@@ -1,0 +1,20 @@
+#%PAM-1.0
+# Screen unlocking does not create a second PAM/logind session.
+#
+# This shares the distribution stack, including any pam_faillock tally: on
+# stacks that count failures, a burst of failed unlocks can briefly contribute
+# to that user's console/SSH counter. Counting is deliberately NOT redirected
+# to a private tally:
+#   * pam_faillock runs here as the unprivileged locker, and it treats an
+#     unreadable tally as "no failures" while ignoring a failed authfail
+#     write. A root-owned 0700 directory would therefore silently disable the
+#     counter instead of protecting anything.
+#   * A fixed directory writable by every user would let any local account
+#     pre-create or corrupt another user's tally, turning the lockout into a
+#     DoS. A per-user XDG_RUNTIME_DIR path cannot be expressed in a static
+#     system-wide PAM policy.
+# rix-lock's own in-process backoff (growing delays, 30 attempts per lock
+# session, persisted across restarts under XDG_RUNTIME_DIR) is the
+# authoritative limit here.
+auth       include system-auth
+account    include system-auth

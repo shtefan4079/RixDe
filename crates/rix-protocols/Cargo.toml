@@ -1,0 +1,13 @@
+[package]
+name = "rix-protocols"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+[features]
+client = ["dep:wayland-client"]
+server = ["dep:wayland-server"]
+[dependencies]
+wayland-scanner = "0.31"
+wayland-backend = "0.3"
+wayland-client = { workspace = true, optional = true }
+wayland-server = { workspace = true, optional = true }

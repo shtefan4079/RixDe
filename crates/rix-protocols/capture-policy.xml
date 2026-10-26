@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="rix_capture_policy_v1">
+  <copyright>Copyright 2026 RixDe contributors. SPDX-License-Identifier: MIT</copyright>
+  <interface name="rix_capture_policy_manager_v1" version="1">
+    <description summary="Surface exclusion from compositor capture">
+      This extension lets a client exclude its own surfaces from captures made
+      by the compositor. Excluded surfaces remain visible on physical outputs.
+      Output captures reveal the scene underneath them; an excluded toplevel
+      cannot be selected as a window capture source.
+
+      Exclusion covers compositor screenshots, screencasts and thumbnails,
+      including their cursor surfaces. It is inherited by subsurfaces and
+      xdg popups, but not by independently created toplevels. It does not protect
+      against cameras, direct device access or capture outside the compositor.
+      This is a compositor extension, not a standard Wayland protocol.
+    </description>
+    <enum name="error">
+      <entry name="already_exists" value="0" summary="surface already has a policy object"/>
+    </enum>
+    <request name="destroy" type="destructor">
+      <description summary="Destroy the manager">Existing policy objects are unaffected.</description>
+    </request>
+    <request name="get_surface">
+      <description summary="Create a policy object for a surface">
+        Only one live policy object may exist for a wl_surface at a time.
+        Creating the object does not change the surface's capture policy.
+      </description>
+      <arg name="id" type="new_id" interface="rix_capture_policy_surface_v1"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+  </interface>
+  <interface name="rix_capture_policy_surface_v1" version="1">
+    <description summary="Double buffered capture policy">
+      The default policy is include. Policy changes take effect atomically with
+      wl_surface.commit, including synchronized subsurface transactions. A client
+      should set exclude before committing its first sensitive buffer and wait
+      for applied before relying on exclusion. Only the last set_policy request
+      in a committed transaction needs to be acknowledged.
+    </description>
+    <enum name="policy">
+      <entry name="include" value="0" summary="allow capture unless inherited exclusion applies"/>
+      <entry name="exclude" value="1" summary="exclude this surface and its children from capture"/>
+    </enum>
+    <enum name="error">
+      <entry name="invalid_policy" value="0" summary="unknown policy value"/>
+      <entry name="surface_destroyed" value="1" summary="wl_surface no longer exists"/>
+    </enum>
+    <request name="destroy" type="destructor">
+      <description summary="Destroy the policy object">
+        The last committed policy persists for the lifetime of the wl_surface.
+        Destroying this object must not accidentally expose a sensitive buffer.
+        To allow capture again, explicitly commit include before destroying it,
+        or create a new policy object and commit include through that object.
+        Already committed synchronized transactions are not cancelled.
+      </description>
+    </request>
+    <request name="set_policy">
+      <arg name="policy" type="uint" enum="policy"/>
+      <arg name="serial" type="uint" summary="client token echoed when the change takes effect"/>
+    </request>
+    <event name="applied">
+      <description summary="The committed policy is now enforced">
+        The serial identifies the applied request. The policy is the surface's
+        own committed value; include cannot override an ancestor's exclusion.
+        Frames captured before this transaction are not revoked.
+      </description>
+      <arg name="serial" type="uint"/>
+      <arg name="policy" type="uint" enum="policy"/>
+    </event>
+  </interface>
+</protocol>

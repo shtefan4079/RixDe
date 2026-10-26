@@ -1,0 +1,4 @@
+[portal]
+DBusName=org.freedesktop.impl.portal.desktop.rix.files
+Interfaces=org.freedesktop.impl.portal.FileChooser;
+UseIn=RIX;

@@ -1,0 +1,103 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { Button } from "std-widgets.slint";
+import { ToggleSwitch } from "../../../ui/common/controls.slint";
+import { LineEdit } from "../../../ui/common/line_edit.slint";
+import { SettingsCard, SettingsRow, SettingsDivider } from "card.slint";
+
+export struct AutostartChoice { id: string, name: string, enabled: bool, available: bool, custom: bool }
+
+export global AutostartSettings {
+    in-out property <[AutostartChoice]> entries;
+    in-out property <[AutostartChoice]> apps;
+    in-out property <string> query;
+    in-out property <string> error;
+    in-out property <bool> picker-open;
+    callback search(string);
+    callback toggle(string, bool);
+    callback add(string);
+    callback remove(string);
+}
+
+export component AutostartView inherits Rectangle {
+    background: transparent;
+    preferred-height: content.preferred-height;
+    content := VerticalLayout {
+        spacing: 16px;
+
+        SettingsCard {
+            title: @tr("Startup applications");
+            subtitle: @tr("Programs that launch automatically when signing into your desktop session");
+
+            HorizontalLayout {
+                Button {
+                    text: AutostartSettings.picker-open ? @tr("Back to startup list") : @tr("Add startup application…");
+                    clicked => {
+                        AutostartSettings.picker-open = !AutostartSettings.picker-open;
+                        AutostartSettings.search(AutostartSettings.query);
+                    }
+                }
+                Rectangle { horizontal-stretch: 1; }
+            }
+
+            if AutostartSettings.entries.length > 0 && !AutostartSettings.picker-open: SettingsDivider {}
+
+            if !AutostartSettings.picker-open: VerticalLayout {
+                spacing: 0px;
+                for app[index] in AutostartSettings.entries: VerticalLayout {
+                    spacing: 0px;
+                    if index > 0: SettingsDivider {}
+                    SettingsRow {
+                        title: app.name;
+                        subtitle: !app.available ? @tr("Application binary not found") : app.custom ? @tr("Custom user entry") : @tr("System entry");
+                        HorizontalLayout {
+                            spacing: 12px; alignment: center;
+                            ToggleSwitch {
+                                checked: app.enabled;
+                                enabled: app.available || app.enabled;
+                                toggled => { AutostartSettings.toggle(app.id, self.checked); }
+                            }
+                            Button {
+                                text: app.custom ? @tr("Delete") : @tr("Disable");
+                                enabled: app.custom || app.enabled;
+                                clicked => { AutostartSettings.remove(app.id); }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if AutostartSettings.entries.length == 0 && !AutostartSettings.picker-open: Text {
+                text: @tr("No startup applications configured");
+                color: Theme.text-secondary; font-size: 13px;
+            }
+        }
+
+        if AutostartSettings.picker-open: SettingsCard {
+            title: @tr("Select installed application");
+            subtitle: @tr("Choose a program to add to your login autostart list");
+
+            LineEdit {
+                placeholder-text: @tr("Filter applications by name…");
+                text <=> AutostartSettings.query;
+                edited(value) => { AutostartSettings.search(value); }
+            }
+
+            for app[index] in AutostartSettings.apps: VerticalLayout {
+                spacing: 0px;
+                if index > 0: SettingsDivider {}
+                SettingsRow {
+                    title: app.name;
+                    Button {
+                        text: @tr("Add to autostart");
+                        primary: true;
+                        clicked => { AutostartSettings.add(app.id); }
+                    }
+                }
+            }
+        }
+
+        if AutostartSettings.error != "": Text {
+            text: AutostartSettings.error; color: Theme.accent; wrap: word-wrap;
+        }
+    }
+}

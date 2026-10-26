@@ -1,0 +1,16 @@
+[package]
+name = "rix-login-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+slint = { workspace = true, features = ["renderer-software"] }
+chrono.workspace = true
+
+[build-dependencies]
+slint-build.workspace = true
+
+[dev-dependencies]
+image.workspace = true

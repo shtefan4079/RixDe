@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=RixDE Settings
+Exec=rix-settings
+Icon=preferences-system
+Type=Application
+Categories=Settings;DesktopSettings;
+StartupWMClass=org.rixde.Settings
+Keywords=rix;desktop;settings;panel;keyboard;

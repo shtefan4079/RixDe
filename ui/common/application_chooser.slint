@@ -1,0 +1,161 @@
+import { Theme } from "theme.slint";
+import { MenuSurface } from "context_menu.slint";
+import { LineEdit } from "line_edit.slint";
+import { ScrollArea } from "scroll_area.slint";
+import { ToggleSwitch } from "controls.slint";
+
+export struct ChooserApplication { id: string, label: string, detail: string, icon: image, recommended: bool, is-default: bool }
+
+export global ApplicationChooser {
+    in-out property <[ChooserApplication]> applications;
+    in-out property <string> title: @tr("Open with");
+    in-out property <string> description;
+    in-out property <string> query;
+    in-out property <int> selected-index: -1;
+    in-out property <bool> always-use;
+    in-out property <bool> show-all;
+    in-out property <bool> allow-always: true;
+    in-out property <bool> busy;
+    in-out property <string> accept-label: @tr("Open");
+    callback search(string);
+    callback show-all-changed(bool);
+    callback confirm(string, bool);
+    callback cancelled();
+    public function accept() {
+        if !ApplicationChooser.busy && ApplicationChooser.selected-index >= 0 && ApplicationChooser.selected-index < ApplicationChooser.applications.length {
+            ApplicationChooser.confirm(ApplicationChooser.applications[ApplicationChooser.selected-index].id, ApplicationChooser.allow-always && ApplicationChooser.always-use);
+        }
+    }
+}
+
+export component ChooserButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary;
+    in property <bool> enabled: true;
+    callback clicked();
+    min-height: Math.max(34px, Theme.menu-action-size);
+    preferred-height: self.min-height;
+    preferred-width: Math.max(76px, label.preferred-width + Theme.spacing-xl * 2);
+    min-width: label.preferred-width + Theme.spacing-lg * 2;
+    horizontal-stretch: 0; vertical-stretch: 0;
+    border-radius: Theme.radius-sm;
+    background: root.primary ? (touch.pressed ? Theme.accent.darker(15%) : touch.has-hover ? Theme.accent-hover : Theme.accent)
+        : (touch.pressed ? Theme.surface-active : touch.has-hover ? Theme.surface-hover : Theme.control-surface);
+    border-width: 1px;
+    border-color: root.primary ? (keys.has-focus ? #ffffff : transparent)
+        : (keys.has-focus ? Theme.accent : touch.has-hover ? Theme.border-highlight : Theme.control-border);
+    opacity: root.enabled ? 1 : 0.45;
+    accessible-role: button; accessible-label: root.text; accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.clicked(); } }
+    forward-focus: keys;
+    label := Text {
+        text: root.text;
+        color: root.primary ? #ffffff : Theme.text-primary;
+        font-weight: root.primary ? 600 : 500;
+        font-size: Theme.font-size-md;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    keys := FocusScope { enabled: root.enabled; key-pressed(event) => { if event.text == Key.Return || event.text == " " { root.clicked(); return accept; } reject } }
+    touch := TouchArea { enabled: root.enabled; mouse-cursor: pointer; clicked => { keys.focus(); root.clicked(); } }
+}
+
+export component ApplicationChooserPanel inherits MenuSurface {
+    in property <bool> desktop-material;
+    private property <int> selected: ApplicationChooser.selected-index;
+    private property <length> row-height: Theme.menu-action-size + Theme.spacing-lg;
+    material-supported: root.desktop-material;
+    opaque: !root.desktop-material;
+    forward-focus: search;
+    public function focus-chooser() { search.focus(); }
+    function move-selection(delta: int) {
+        if !ApplicationChooser.busy && ApplicationChooser.applications.length > 0 {
+            ApplicationChooser.selected-index = Math.max(0, Math.min(ApplicationChooser.applications.length - 1, ApplicationChooser.selected-index + delta));
+        }
+    }
+    changed selected => {
+        if root.selected >= 0 {
+            let top = Theme.default-spacing + root.selected * (root.row-height + Theme.spacing-xs);
+            list.reveal(top, top + root.row-height);
+        }
+    }
+    keys := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.Escape { ApplicationChooser.cancelled(); return accept; }
+            if event.text == Key.DownArrow { root.move-selection(1); return accept; }
+            if event.text == Key.UpArrow { root.move-selection(-1); return accept; }
+            if event.text == Key.Return { ApplicationChooser.accept(); return accept; }
+            if event.modifiers.control || event.modifiers.alt { return accept; }
+            reject
+        }
+        VerticalLayout {
+            padding: Theme.spacing-xl; spacing: Theme.spacing-lg;
+            VerticalLayout {
+                spacing: Theme.spacing-xs;
+                Text { text: ApplicationChooser.title; color: Theme.text-primary; font-size: Theme.font-size-lg; font-weight: 600; }
+                Text { text: ApplicationChooser.description; color: Theme.text-secondary; font-size: Theme.font-size-sm; wrap: word-wrap; }
+            }
+            search := LineEdit {
+                placeholder-text: @tr("Search applications…");
+                text <=> ApplicationChooser.query;
+                enabled: !ApplicationChooser.busy;
+                edited(value) => { ApplicationChooser.search(value); }
+                accepted(value) => { ApplicationChooser.accept(); }
+                key-pressed(event) => {
+                    if event.text == Key.Escape { ApplicationChooser.cancelled(); return accept; }
+                    if event.text == Key.DownArrow { root.move-selection(1); return accept; }
+                    if event.text == Key.UpArrow { root.move-selection(-1); return accept; }
+                    reject
+                }
+            }
+            Rectangle {
+                border-width: 1px; border-color: Theme.divider; border-radius: Theme.radius-sm;
+                background: Theme.surface; clip: true; vertical-stretch: 1;
+                list := ScrollArea {
+                    width: parent.width; height: parent.height;
+                    content-height: ApplicationChooser.applications.length * (root.row-height + Theme.spacing-xs) + Theme.default-spacing * 2;
+                    VerticalLayout {
+                        width: list.content-width; padding: Theme.default-spacing; spacing: Theme.spacing-xs;
+                        for app[index] in ApplicationChooser.applications: Rectangle {
+                            height: root.row-height;
+                            border-radius: Theme.radius-sm;
+                            background: index == ApplicationChooser.selected-index ? Theme.surface-active : row.has-hover ? Theme.surface-hover : transparent;
+                            border-width: index == ApplicationChooser.selected-index ? 1px : 0px; border-color: Theme.accent;
+                            accessible-role: button; accessible-label: app.label; accessible-description: app.detail;
+                            accessible-action-default => { ApplicationChooser.selected-index = index; }
+                            HorizontalLayout {
+                                padding-left: Theme.spacing-lg; padding-right: Theme.spacing-lg; spacing: Theme.spacing-lg;
+                                Image { source: app.icon; width: Theme.icon-size-lg; height: self.width; image-fit: contain; horizontal-stretch: 0; vertical-stretch: 0; }
+                                VerticalLayout {
+                                    horizontal-stretch: 1; alignment: center; spacing: Theme.spacing-xs;
+                                    Text { text: app.label; color: Theme.text-primary; font-weight: 600; overflow: elide; }
+                                    Text { text: app.detail; color: Theme.text-secondary; font-size: Theme.font-size-sm; overflow: elide; }
+                                }
+                                if app.is-default: Text { text: @tr("Default"); color: Theme.accent; font-size: Theme.font-size-sm; vertical-alignment: center; horizontal-stretch: 0; }
+                            }
+                            row := TouchArea { enabled: !ApplicationChooser.busy; mouse-cursor: pointer; clicked => { ApplicationChooser.selected-index = index; keys.focus(); } }
+                        }
+                    }
+                }
+                if ApplicationChooser.applications.length == 0: Text {
+                    text: @tr("No matching applications"); color: Theme.text-muted; horizontal-alignment: center; vertical-alignment: center;
+                }
+            }
+            HorizontalLayout {
+                ChooserButton { text: ApplicationChooser.show-all ? @tr("Recommended applications") : @tr("All applications"); enabled: !ApplicationChooser.busy; clicked => { ApplicationChooser.show-all = !ApplicationChooser.show-all; ApplicationChooser.show-all-changed(ApplicationChooser.show-all); } }
+                Rectangle { horizontal-stretch: 1; }
+            }
+            Rectangle { height: 1px; background: Theme.divider; }
+            if ApplicationChooser.allow-always: HorizontalLayout {
+                alignment: start;
+                ToggleSwitch { text: @tr("Always use for this file type"); checked <=> ApplicationChooser.always-use; enabled: !ApplicationChooser.busy; horizontal-stretch: 0; }
+                Rectangle { horizontal-stretch: 1; }
+            }
+            HorizontalLayout {
+                alignment: end; spacing: Theme.default-spacing;
+                ChooserButton { text: @tr("Cancel"); enabled: !ApplicationChooser.busy; clicked => { ApplicationChooser.cancelled(); } }
+                ChooserButton { text: ApplicationChooser.accept-label; primary: true; enabled: !ApplicationChooser.busy && ApplicationChooser.selected-index >= 0 && ApplicationChooser.selected-index < ApplicationChooser.applications.length; clicked => { ApplicationChooser.accept(); } }
+            }
+        }
+    }
+}

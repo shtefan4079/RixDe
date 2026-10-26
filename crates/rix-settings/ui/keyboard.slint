@@ -1,0 +1,158 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { ScrollArea } from "../../../ui/common/scroll_area.slint";
+import { Button, SpinBox } from "std-widgets.slint";
+import { ComboBox } from "../../../ui/common/combo_box.slint";
+import { LineEdit } from "../../../ui/common/line_edit.slint";
+import { SettingsCard, SettingsRow, SettingsDivider, RixSpinBox } from "card.slint";
+
+export struct LayoutChoice { code: string, variant: string, name: string, label: string }
+
+export global KeyboardSettings {
+    in-out property <[LayoutChoice]> active;
+    in-out property <[LayoutChoice]> catalog;
+    in-out property <string> query;
+    in-out property <string> error;
+    in-out property <int> switch-index;
+    in-out property <int> repeat-rate: 30;
+    in-out property <int> repeat-delay: 500;
+    callback search(string);
+    callback add(string, string);
+    callback remove(int);
+    callback move(int, int);
+    callback apply();
+}
+
+export component KeyboardSettingsView inherits Rectangle {
+    private property <bool> adding;
+    background: transparent;
+    preferred-height: content.preferred-height;
+    content := VerticalLayout {
+        spacing: 16px;
+
+        SettingsCard {
+            title: @tr("Active keyboard layouts");
+            subtitle: @tr("Input languages and switching order");
+
+            for layout[index] in KeyboardSettings.active: VerticalLayout {
+                spacing: 0px;
+                if index > 0: SettingsDivider {}
+                SettingsRow {
+                    title: layout.name;
+                    subtitle: layout.code + (layout.variant != "" ? " (" + layout.variant + ")" : "");
+                    HorizontalLayout {
+                        spacing: 8px; alignment: center;
+                        Rectangle {
+                            width: 38px; height: 26px; border-radius: 4px;
+                            background: Theme.accent.with-alpha(0.14);
+                            Text {
+                                text: layout.label; color: Theme.accent; font-weight: 700;
+                                horizontal-alignment: center; vertical-alignment: center;
+                            }
+                        }
+                        Button { text: "↑"; enabled: index > 0; clicked => { KeyboardSettings.move(index, -1); } }
+                        Button { text: "↓"; enabled: index < KeyboardSettings.active.length - 1; clicked => { KeyboardSettings.move(index, 1); } }
+                        Button { text: @tr("Delete"); enabled: KeyboardSettings.active.length > 1; clicked => { KeyboardSettings.remove(index); } }
+                    }
+                }
+            }
+
+            SettingsDivider {}
+
+            HorizontalLayout {
+                Button {
+                    text: root.adding ? @tr("Close layout catalog") : @tr("Add keyboard layout…");
+                    enabled: KeyboardSettings.active.length < 8 || root.adding;
+                    clicked => { root.adding = !root.adding; }
+                }
+                Rectangle { horizontal-stretch: 1; }
+            }
+        }
+
+        SettingsCard {
+            title: @tr("Layout switching shortcut");
+            subtitle: @tr("Key combination used to cycle through installed layouts");
+
+            SettingsRow {
+                title: @tr("Switch layout shortcut");
+                subtitle: @tr("Global hotkey for input language switching");
+                ComboBox {
+                    model: ["Alt + Shift", "Ctrl + Shift", @tr("Win + Space"), "Caps Lock", @tr("Right Alt"), @tr("None")];
+                    current-index <=> KeyboardSettings.switch-index;
+                    min-width: 195px;
+                }
+            }
+        }
+
+        SettingsCard {
+            title: @tr("Key repeat and responsiveness");
+            subtitle: @tr("Typing speed and delay before repeating keys");
+
+            SettingsRow {
+                title: @tr("Repeat rate");
+                subtitle: @tr("Characters repeated per second when holding down a key");
+                RixSpinBox {
+                    minimum: 1; maximum: 100;
+                    value <=> KeyboardSettings.repeat-rate;
+                    suffix: " " + @tr("char/s");
+                }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Repeat delay");
+                subtitle: @tr("Milliseconds before a held key starts repeating");
+                RixSpinBox {
+                    minimum: 100; maximum: 2000; step: 50;
+                    value <=> KeyboardSettings.repeat-delay;
+                    suffix: " ms";
+                }
+            }
+        }
+
+        if KeyboardSettings.error != "": Text {
+            text: KeyboardSettings.error; color: Theme.danger; wrap: word-wrap;
+        }
+    }
+
+    if root.adding: Rectangle {
+        x: 0; y: 0; width: root.width; height: 420px;
+        background: Theme.window-background.with-alpha(0.85);
+        TouchArea {}
+        Rectangle {
+            x: 20px; y: 20px; width: parent.width - 40px; height: parent.height - 40px;
+            background: Theme.surface; border-width: 1px; border-color: Theme.border; border-radius: Theme.radius-md;
+            VerticalLayout {
+                padding: 16px; spacing: 12px;
+                HorizontalLayout {
+                    Text { text: @tr("Keyboard layout catalog"); font-size: 16px; font-weight: 600; color: Theme.text-primary; horizontal-stretch: 1; }
+                    Button { text: @tr("Close"); clicked => { root.adding = false; } }
+                }
+                LineEdit {
+                    placeholder-text: @tr("Search layout by language or country…");
+                    text <=> KeyboardSettings.query;
+                    edited(value) => { KeyboardSettings.search(value); }
+                }
+                ScrollArea {
+                    vertical-stretch: 1;
+                    content-height: cat-list.preferred-height;
+                    cat-list := VerticalLayout {
+                        width: parent.content-width; spacing: 4px;
+                        for item in KeyboardSettings.catalog: Rectangle {
+                            height: 48px; border-radius: Theme.radius-sm; background: Theme.control-surface;
+                            HorizontalLayout {
+                                padding-left: 14px; padding-right: 14px; spacing: 10px; alignment: center;
+                                Text { text: item.name; color: Theme.text-primary; horizontal-stretch: 1; vertical-alignment: center; }
+                                Text { text: item.code + (item.variant != "" ? " (" + item.variant + ")" : ""); color: Theme.text-secondary; font-size: 12px; vertical-alignment: center; }
+                                Button {
+                                    text: @tr("Add");
+                                    clicked => { KeyboardSettings.add(item.code, item.variant); root.adding = false; }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

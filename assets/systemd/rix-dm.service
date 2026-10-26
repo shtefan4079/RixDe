@@ -1,0 +1,25 @@
+[Unit]
+Description=Rix display manager
+Documentation=file:/usr/local/share/rix/DISPLAY_MANAGER.md
+After=systemd-user-sessions.service systemd-logind.service getty@tty1.service
+Conflicts=getty@tty1.service
+Wants=systemd-logind.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStart=/usr/local/libexec/rixde/rix-dm --config /etc/rix-dm/config.json
+Restart=on-failure
+RestartSec=3
+RuntimeDirectory=rix-dm
+RuntimeDirectoryMode=0750
+KillMode=mixed
+TimeoutStopSec=12
+SendSIGKILL=yes
+LimitCORE=0
+UMask=0077
+
+[Install]
+Alias=display-manager.service
+WantedBy=graphical.target

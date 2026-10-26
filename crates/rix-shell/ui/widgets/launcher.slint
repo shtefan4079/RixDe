@@ -1,0 +1,49 @@
+import { Theme } from "../theme.slint";
+
+export component LauncherWidget inherits Rectangle {
+    in property <bool> is-open: false;
+    in property <bool> is-edit-mode: false;
+    in property <length> button-size: Theme.task-width;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    callback clicked();
+    callback double-clicked();
+
+    width: root.button-size;
+    height: root.button-size;
+    border-radius: Theme.radius-md;
+    border-width: 1px;
+    border-color: root.is-edit-mode ? Theme.edit-outline : Colors.transparent;
+    background: touch.has-hover ? Theme.task-hover-background : root.is-open ? Theme.task-active-background : Colors.transparent;
+
+    animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+        double-clicked => { root.double-clicked(); }
+    }
+
+    Rectangle {
+        width: Math.min(Theme.panel-launcher-icon-size, root.width, root.height);
+        height: self.width;
+        x: (round((parent.width - self.width) / 2px) * 1px);
+        y: (round((parent.height - self.height) / 2px) * 1px);
+        border-radius: Theme.radius-sm;
+        background: root.has-icon ? Colors.transparent : Theme.accent;
+        if root.has-icon: Image {
+            source: root.icon;
+            width: 100%;
+            height: 100%;
+            image-fit: contain;
+        }
+        if !root.has-icon: Text {
+            text: "R";
+            color: Theme.text-primary;
+            font-size: Theme.font-size-xl;
+            font-weight: 750;
+            x: (round((parent.width - self.width) / 2px) * 1px);
+            y: (round((parent.height - self.height) / 2px) * 1px) - 1px;
+        }
+    }
+}

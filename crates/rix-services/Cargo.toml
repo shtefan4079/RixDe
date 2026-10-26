@@ -1,0 +1,33 @@
+[package]
+name = "rix-services"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "rix-run"
+path = "src/bin/rix-run.rs"
+
+[dependencies]
+gio.workspace = true
+libc.workspace = true
+rix-config.workspace = true
+rix-ipc.workspace = true
+clavis-client = { path = "../clavis-client" }
+roxmltree = "0.21"
+anyhow.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+zbus = { version = "5.19", default-features = false, features = ["tokio"] }
+futures-util = "0.3"
+notify.workspace = true
+freedesktop-desktop-entry = { version = "0.8", default-features = false }
+xdg-mime = "0.4"
+url = "2"
+tempfile = "3"
+
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

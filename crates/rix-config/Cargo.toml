@@ -1,0 +1,22 @@
+[package]
+name = "rix-config"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+rix-assets.workspace = true
+rix-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+kdl = { workspace = true }
+chrono.workspace = true
+thiserror = { workspace = true }
+tracing = { workspace = true }
+notify = { workspace = true }
+tokio = { workspace = true }
+libc.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

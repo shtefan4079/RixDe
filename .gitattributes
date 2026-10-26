@@ -1,0 +1,3 @@
+*.patch -whitespace
+# Keep bundled upstream code out of the application's GitHub language metrics.
+vendor/smithay/** linguist-vendored=true

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="rix_toplevel_observer_v1">
+  <copyright>Copyright 2026 RixDe contributors. SPDX-License-Identifier: MIT</copyright>
+  <interface name="rix_toplevel_observer_manager_v1" version="1">
+    <description summary="Observe a toplevel owned by the connecting process">
+      An optional compositor extension for positioning non-interactive overlays.
+      The compositor selects the largest existing toplevel belonging to the
+      process identified by the connection's peer credentials. Connections of
+      other processes are never observed. No application names, process IDs or
+      window titles are supplied by the client. This does not grant capture,
+      input injection or window management permissions.
+    </description>
+    <request name="destroy" type="destructor"/>
+    <request name="observe">
+      <arg name="id" type="new_id" interface="rix_toplevel_observer_v1"/>
+    </request>
+  </interface>
+  <interface name="rix_toplevel_observer_v1" version="1">
+    <description summary="Atomic geometry and focus updates">
+      One state or unavailable event is sent when created, followed by events
+      only when the state changes. The geometry is the client content rectangle,
+      excluding compositor decorations, in global logical coordinates. A
+      minimized or unfocused window is reported with active=0. active=0 is also
+      enforced during session locking or when no output intersects the window.
+      output names match wl_output.name. The output with the largest intersection
+      is chosen. unavailable means no matching toplevel/output exists.
+    </description>
+    <enum name="error">
+      <entry name="invalid_role" value="0" summary="overlay must have the layer-shell role"/>
+    </enum>
+    <request name="destroy" type="destructor"/>
+    <request name="attach_overlay">
+      <description summary="Show an overlay only while the observed window is active">
+        The supplied layer-shell surface and its subsurfaces/popups are visible only when
+        the observed toplevel is focused and mapped. Visibility is controlled
+        by the compositor even if the client stops producing frames. Attach
+        before committing the overlay's first buffer. Attaching does not change
+        capture policy or input regions; use an empty input region for a passive
+        overlay. Destroying the observer leaves its attached surfaces hidden.
+        A later attachment replaces the previous observer for that surface.
+      </description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+    <request name="detach_overlay">
+      <description summary="Restore normal visibility">Only an attachment to this observer is removed.</description>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+    <event name="state">
+      <arg name="output" type="string"/>
+      <arg name="x" type="int"/><arg name="y" type="int"/>
+      <arg name="width" type="int"/><arg name="height" type="int"/>
+      <arg name="output_x" type="int"/><arg name="output_y" type="int"/>
+      <arg name="active" type="uint" summary="one when focused and visible, otherwise zero"/>
+    </event>
+    <event name="unavailable"/>
+  </interface>
+</protocol>

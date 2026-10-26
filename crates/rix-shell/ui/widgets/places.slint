@@ -1,0 +1,20 @@
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { ScrollArea } from "../../../../ui/common/scroll_area.slint";
+export struct PlaceData { name: string, path: string, icon: image, has-icon: bool }
+export component PlacesView inherits Rectangle {
+    in property <[PlaceData]> places;
+    callback open-place(string);
+    list := ScrollArea {
+        content-height: root.places.length * Theme.menu-row-height;
+        for place[index] in root.places: Rectangle {
+            y: index * Theme.menu-row-height; width: list.content-width;
+            height: Theme.menu-row-height;
+            border-radius: Theme.radius-sm;
+            background: touch.has-hover ? Theme.surface-hover : transparent;
+            Image { source: place.has-icon ? place.icon : Icons.folder; x: Theme.default-spacing; y: (parent.height - self.height) / 2; width: Theme.icon-size; height: Theme.icon-size; image-fit: contain; }
+            Text { x: Theme.icon-size + Theme.default-spacing * 2; width: parent.width - self.x - Theme.default-spacing; height: parent.height; text: place.name; color: Theme.text-primary; vertical-alignment: center; overflow: elide; }
+            touch := TouchArea { clicked => { root.open-place(place.path); } }
+        }
+    }
+}

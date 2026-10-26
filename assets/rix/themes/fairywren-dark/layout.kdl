@@ -1,0 +1,17 @@
+// Portable visual layout; application choices and input settings are preserved.
+panel id="main-panel" screen="focused" position="bottom" thickness=46 floating=true floating-margin=0 corner-radius=8 {
+    alignment "center"
+    exclusive-zone true
+    autohide "none"
+    length "fill"
+    section "center" {
+        widget "launcher" id="launcher"
+        widget "taskbar" id="taskbar" show-labels=false
+    }
+    section "end" {
+        widget "tray" id="tray"
+        widget "clock" id="clock"
+        widget "show-desktop" id="show-desktop"
+    }
+}
+launcher width=697 height=583 icon="duckstation" alignment="center"

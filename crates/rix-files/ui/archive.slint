@@ -1,0 +1,96 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { ScrollArea } from "../../../ui/common/scroll_area.slint";
+import { Button, IconButton, Field } from "controls.slint";
+export struct ArchiveMember { name: string, detail: string, icon: image, directory: bool }
+export global ArchiveBrowser {
+    in-out property <bool> visible;
+    in-out property <bool> busy;
+    in-out property <string> title;
+    in-out property <string> folder;
+    in-out property <string> summary;
+    in-out property <string> message;
+    in-out property <string> password;
+    in-out property <bool> can-up;
+    in-out property <[ArchiveMember]> members;
+    in-out property <int> selected-index: -1;
+    in-out property <int> focus-generation;
+    callback open(int);
+    callback up();
+    callback close();
+    callback extract();
+    callback unlock(string);
+}
+export component ArchivePanel inherits Rectangle {
+    in property <bool> desktop-material;
+
+    background: root.desktop-material ? transparent : Theme.window-background.with-alpha(1);
+    private property <bool> show-password;
+    forward-focus: keys;
+    public function focus-browser() { keys.focus(); }
+    TouchArea {}
+    private property <int> selected: ArchiveBrowser.selected-index;
+    private property <int> focus-generation: ArchiveBrowser.focus-generation;
+    changed focus-generation => { root.focus-browser(); }
+    changed selected => { if root.selected >= 0 { let top = root.selected * (Theme.icon-size-lg + Theme.spacing-lg * 2); area.reveal(top, top + Theme.icon-size-lg + Theme.spacing-lg * 2); } }
+    keys := FocusScope {
+        width: root.width; height: root.height;
+        key-pressed(event) => {
+            if event.modifiers.alt && event.text == Key.UpArrow { ArchiveBrowser.up(); return accept; }
+            if event.text == Key.DownArrow { ArchiveBrowser.selected-index = Math.min(ArchiveBrowser.members.length - 1, ArchiveBrowser.selected-index + 1); return accept; }
+            if event.text == Key.UpArrow { ArchiveBrowser.selected-index = Math.max(0, ArchiveBrowser.selected-index - 1); return accept; }
+            if event.text == Key.Return && ArchiveBrowser.selected-index >= 0 { ArchiveBrowser.open(ArchiveBrowser.selected-index); return accept; }
+            if event.text == Key.Escape { ArchiveBrowser.close(); return accept; }
+            reject
+        }
+        VerticalLayout {
+            width: root.width; height: root.height;
+            padding: Theme.spacing-xl; spacing: Theme.spacing-lg;
+            HorizontalLayout {
+                spacing: Theme.default-spacing;
+                VerticalLayout { spacing: Theme.spacing-xs; horizontal-stretch: 1; min-width: 0px;
+                    Text { text: ArchiveBrowser.title; color: Theme.text-primary; font-size: Theme.font-size-lg; font-weight: 600; overflow: elide; }
+                    Text { text: @tr("Archive") + " · " + ArchiveBrowser.summary; color: Theme.text-secondary; overflow: elide; }
+                }
+                Button { text: @tr("Password…"); clicked => { root.show-password = !root.show-password; } }
+                Button { text: @tr("Extract…"); active: true; enabled: !ArchiveBrowser.busy && ArchiveBrowser.summary != "" && ArchiveBrowser.message == ""; clicked => { ArchiveBrowser.extract(); } }
+                Button { text: @tr("Close"); clicked => { ArchiveBrowser.close(); } }
+            }
+            Rectangle { height: 1px; background: Theme.divider; }
+            HorizontalLayout { spacing: Theme.default-spacing;
+                Button { text: @tr("Up"); horizontal-stretch: 0; enabled: ArchiveBrowser.can-up && !ArchiveBrowser.busy; clicked => { ArchiveBrowser.up(); } }
+                Text { text: ArchiveBrowser.folder == "" ? "/" : "/" + ArchiveBrowser.folder; horizontal-stretch: 1; color: Theme.text-secondary; overflow: elide; vertical-alignment: center; }
+            }
+            if ArchiveBrowser.message != "" || root.show-password: VerticalLayout {
+                spacing: Theme.default-spacing;
+                Text { text: ArchiveBrowser.message; color: Theme.text-secondary; wrap: word-wrap; }
+                HorizontalLayout {
+                    Field { placeholder: @tr("Archive password"); text <=> ArchiveBrowser.password; input-type: password; escape => { ArchiveBrowser.close(); } accepted(value) => { ArchiveBrowser.unlock(value); } }
+                    Button { text: @tr("Unlock"); enabled: !ArchiveBrowser.busy; clicked => { ArchiveBrowser.unlock(ArchiveBrowser.password); } }
+                }
+            }
+            area := ScrollArea {
+                vertical-stretch: 1;
+                content-height: ArchiveBrowser.members.length * (Theme.icon-size-lg + Theme.spacing-lg * 2);
+                VerticalLayout { width: area.content-width; spacing: 0px;
+                    for member[index] in ArchiveBrowser.members: Rectangle {
+                        height: Theme.icon-size-lg + Theme.spacing-lg * 2;
+                        border-radius: Theme.radius-sm;
+                        background: index == ArchiveBrowser.selected-index ? Theme.surface-active : touch.has-hover ? Theme.surface-hover : transparent;
+                        accessible-role: button; accessible-label: member.name; accessible-description: member.detail;
+                        accessible-action-default => { ArchiveBrowser.open(index); }
+                        HorizontalLayout {
+                            padding: Theme.spacing-lg; spacing: Theme.spacing-lg;
+                            Image { source: member.icon; width: Theme.icon-size-lg; height: self.width; horizontal-stretch: 0; image-fit: contain; }
+                            VerticalLayout { alignment: center; spacing: Theme.spacing-xs;
+                                Text { text: member.name; color: Theme.text-primary; font-weight: 600; overflow: elide; }
+                                Text { text: member.detail; color: Theme.text-secondary; font-size: Theme.font-size-sm; overflow: elide; }
+                            }
+                        }
+                        touch := TouchArea { enabled: !ArchiveBrowser.busy; mouse-cursor: pointer; clicked => { ArchiveBrowser.selected-index = index; ArchiveBrowser.open(index); } }
+                    }
+                }
+            }
+            if ArchiveBrowser.busy: Text { text: @tr("Reading archive…"); color: Theme.text-muted; }
+        }
+    }
+}

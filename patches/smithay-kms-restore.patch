@@ -1,0 +1,220 @@
+--- a/src/backend/drm/device/atomic.rs
++++ b/src/backend/drm/device/atomic.rs
+@@ -1,4 +1,5 @@
+ use std::collections::HashMap;
++use std::os::fd::AsFd;
+ use std::sync::{
+     atomic::{AtomicBool, Ordering},
+     Arc, RwLock,
+@@ -6,8 +7,7 @@
+ 
+ use drm::control::atomic::AtomicModeReq;
+ use drm::control::{
+-    connector, crtc, framebuffer, plane, property, AtomicCommitFlags, Device as ControlDevice,
+-    PropertyValueSet, ResourceHandle,
++    connector, crtc, framebuffer, plane, property, AtomicCommitFlags, Device as ControlDevice, ResourceHandle,
+ };
+ 
+ use super::DrmDeviceFd;
+@@ -16,11 +16,20 @@
+ 
+ use tracing::{debug, error, info_span, trace};
+ 
++// Blob IDs are not references: reset_state or the previous owner can destroy
++// them. Keep their bytes, then create our own blobs for the restore commit.
++#[derive(Debug)]
++enum SavedValue {
++    Raw(property::RawValue),
++    Blob(Vec<u8>),
++}
++
++type SavedProperties = Vec<(property::Handle, SavedValue)>;
+ type OldState = (
+-    Vec<(connector::Handle, PropertyValueSet)>,
+-    Vec<(crtc::Handle, PropertyValueSet)>,
+-    Vec<(framebuffer::Handle, PropertyValueSet)>,
+-    Vec<(plane::Handle, PropertyValueSet)>,
++    Vec<(connector::Handle, SavedProperties)>,
++    Vec<(crtc::Handle, SavedProperties)>,
++    Vec<(framebuffer::Handle, SavedProperties)>,
++    Vec<(plane::Handle, SavedProperties)>,
+ );
+ 
+ #[derive(Clone, Debug, Default)]
+@@ -118,7 +127,7 @@
+             })
+         })?;
+ 
+-        let mut old_state = dev.old_state.clone();
++        let mut old_state = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+         let mut mapping = dev.prop_mapping.write().unwrap();
+ 
+         // This helper function takes a snapshot of the current device properties.
+@@ -251,58 +260,135 @@
+ 
+             debug!("Device still active, trying to restore previous state");
+             let mut req = AtomicModeReq::new();
++            let mut blobs = Vec::new();
+             fn add_multiple_props<T: ResourceHandle>(
++                fd: &DrmDeviceFd,
+                 req: &mut AtomicModeReq,
+-                old_state: &[(T, PropertyValueSet)],
+-            ) {
+-                for (handle, set) in old_state {
+-                    let (prop_handles, values) = set.as_props_and_values();
+-                    for (&prop_handle, &val) in prop_handles.iter().zip(values.iter()) {
+-                        req.add_raw_property((*handle).into(), prop_handle, val);
++                old_state: &mut [(T, SavedProperties)],
++                blobs: &mut Vec<u64>,
++            ) -> std::io::Result<()> {
++                for (handle, properties) in old_state {
++                    for (property, value) in properties {
++                        let raw = match value {
++                            SavedValue::Raw(raw) => *raw,
++                            SavedValue::Blob(data) => {
++                                let blob = drm_ffi::mode::create_property_blob(fd.as_fd(), data)?;
++                                let id = u64::from(blob.blob_id);
++                                blobs.push(id);
++                                id
++                            }
++                        };
++                        req.add_raw_property((*handle).into(), *property, raw);
+                     }
+                 }
++                Ok(())
+             }
+ 
+-            add_multiple_props(&mut req, &self.old_state.0);
+-            add_multiple_props(&mut req, &self.old_state.1);
+-            add_multiple_props(&mut req, &self.old_state.2);
+-            add_multiple_props(&mut req, &self.old_state.3);
+-
+-            trace!("Previous state: {:?}", req);
+-            if let Err(err) = self.fd.atomic_commit(AtomicCommitFlags::ALLOW_MODESET, req) {
++            let result = (|| {
++                add_multiple_props(&self.fd, &mut req, &mut self.old_state.0, &mut blobs)?;
++                add_multiple_props(&self.fd, &mut req, &mut self.old_state.1, &mut blobs)?;
++                add_multiple_props(&self.fd, &mut req, &mut self.old_state.2, &mut blobs)?;
++                add_multiple_props(&self.fd, &mut req, &mut self.old_state.3, &mut blobs)?;
++                trace!("Previous state: {:?}", req);
++                self.fd.atomic_commit(AtomicCommitFlags::ALLOW_MODESET, req)
++            })();
++            if let Err(err) = result {
+                 error!("Failed to restore previous state. Error: {}", err);
+             }
++            // The applied atomic state retains its own references. Release our
++            // handles on both success and failure, including a partial build.
++            for blob in blobs {
++                let _ = self.fd.destroy_property_blob(blob);
++            }
++        }
++    }
++}
++
++// These names are part of the kernel DRM ABI, not monitor-specific policy.
++// ACTIVE + CRTC_ID restore power/routing atomically; DPMS is legacy-only.
++fn restorable_property(name: &[u8], mutable: bool) -> bool {
++    mutable
++        && !matches!(
++            name,
++            b"DPMS"
++                | b"IN_FENCE_FD"
++                | b"OUT_FENCE_PTR"
++                | b"WRITEBACK_OUT_FENCE_PTR"
++                | b"WRITEBACK_FB_ID"
++                | b"FB_DAMAGE_CLIPS"
++        )
++}
++
++#[cfg(test)]
++mod restore_tests {
++    use super::restorable_property;
++    #[test]
++    fn atomic_restore_excludes_metadata_and_per_commit_handles() {
++        for name in [b"type".as_slice(), b"EDID", b"IN_FORMATS", b"non-desktop"] {
++            assert!(!restorable_property(name, false));
++        }
++        for name in [
++            b"DPMS".as_slice(),
++            b"IN_FENCE_FD",
++            b"OUT_FENCE_PTR",
++            b"WRITEBACK_OUT_FENCE_PTR",
++            b"WRITEBACK_FB_ID",
++            b"FB_DAMAGE_CLIPS",
++        ] {
++            assert!(!restorable_property(name, true));
++        }
++        for name in [
++            b"ACTIVE".as_slice(),
++            b"MODE_ID",
++            b"CRTC_ID",
++            b"FB_ID",
++            b"SRC_W",
++            b"CRTC_X",
++            b"rotation",
++            b"VRR_ENABLED",
++        ] {
++            assert!(restorable_property(name, true));
+         }
+     }
+ }
+ 
+ // Add all properties of given handles to a given drm resource type to state.
+ // You may use this to snapshot the current state of the drm device (fully or partially).
+-fn add_props<D, T>(fd: &D, handles: &[T], state: &mut Vec<(T, PropertyValueSet)>) -> Result<(), Error>
++fn add_props<D, T>(fd: &D, handles: &[T], state: &mut Vec<(T, SavedProperties)>) -> Result<(), Error>
+ where
+     D: DevPath + ControlDevice,
+     T: ResourceHandle,
+ {
+-    let iter = handles.iter().map(|x| (x, fd.get_properties(*x)));
+-    if let Some(len) = iter.size_hint().1 {
+-        state.reserve_exact(len)
+-    }
+-
+-    iter.map(|(x, y)| (*x, y))
+-        .try_for_each(|(x, y)| match y {
+-            Ok(y) => {
+-                state.push((x, y));
+-                Ok(())
++    let snapshot = || -> std::io::Result<Vec<(T, SavedProperties)>> {
++        let mut saved = Vec::with_capacity(handles.len());
++        for handle in handles {
++            let mut properties = Vec::new();
++            for (property, raw) in fd.get_properties(*handle)? {
++                let info = fd.get_property(property)?;
++                // GETPROPERTIES also returns immutable metadata, legacy DPMS
++                // and per-commit handles. None belongs in an atomic restore.
++                if !restorable_property(info.name().to_bytes(), info.mutable()) {
++                    continue;
++                }
++                let value = if raw != 0 && matches!(info.value_type(), property::ValueType::Blob) {
++                    SavedValue::Blob(fd.get_property_blob(raw)?)
++                } else {
++                    SavedValue::Raw(raw)
++                };
++                properties.push((property, value));
+             }
+-            Err(err) => Err(err),
++            saved.push((*handle, properties));
++        }
++        Ok(saved)
++    };
++    *state = snapshot().map_err(|source| {
++        Error::Access(AccessError {
++            errmsg: "Error saving DRM properties and blobs",
++            dev: fd.dev_path(),
++            source,
+         })
+-        .map_err(|source| {
+-            Error::Access(AccessError {
+-                errmsg: "Error reading properties",
+-                dev: fd.dev_path(),
+-                source,
+-            })
+-        })
++    })?;
++    Ok(())
+ }
+ 
+ /// Create a mapping of property names and handles for given handles of a given drm resource type.

@@ -1,0 +1,83 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { Button } from "std-widgets.slint";
+import { SettingsCard, SettingsRow, SettingsDivider } from "card.slint";
+
+export struct ClavisProviderChoice { id: string, name: string, detail: string, available: bool }
+
+export global ClavisSettings {
+    in-out property <string> provider;
+    in-out property <string> next-provider;
+    in-out property <string> selected;
+    in-out property <[ClavisProviderChoice]> choices;
+    in-out property <string> status;
+    in-out property <bool> busy;
+    callback open();
+    callback choose(string);
+}
+
+export component ClavisView inherits Rectangle {
+    background: transparent;
+    preferred-height: content.preferred-height;
+    content := VerticalLayout {
+        spacing: 16px;
+
+        SettingsCard {
+            title: @tr("Clavis Password and Secret Vault");
+            subtitle: @tr("Manage encrypted application passwords, tokens and credentials");
+
+            HorizontalLayout {
+                Button {
+                    text: @tr("Open Clavis application");
+                    primary: true;
+                    clicked => { ClavisSettings.open(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Current session provider");
+                subtitle: @tr("Active Secret Service implementation in this session");
+                Text { text: ClavisSettings.provider; color: Theme.accent; font-weight: 600; font-size: 13px; }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Next login provider");
+                subtitle: @tr("Provider selected to activate upon next sign-in");
+                Text { text: ClavisSettings.next-provider; color: Theme.text-primary; font-size: 13px; }
+            }
+        }
+
+        SettingsCard {
+            title: @tr("Available secret providers");
+            subtitle: @tr("Select backend used to store encrypted credentials and browser keys");
+
+            for choice[index] in ClavisSettings.choices: VerticalLayout {
+                spacing: 0px;
+                if index > 0: SettingsDivider {}
+                SettingsRow {
+                    title: choice.name;
+                    subtitle: choice.detail;
+                    Button {
+                        text: ClavisSettings.selected == choice.id ? @tr("Selected") : @tr("Choose");
+                        primary: ClavisSettings.selected == choice.id;
+                        enabled: choice.available && !ClavisSettings.busy;
+                        clicked => { ClavisSettings.choose(choice.id); }
+                    }
+                }
+            }
+        }
+
+        if ClavisSettings.status != "": Text {
+            text: ClavisSettings.status; color: Theme.text-secondary; wrap: word-wrap;
+        }
+
+        Text {
+            text: @tr("Clavis integrates with applications that use Secret Service and the Secret portal. Existing browser encryption keys remain in their current provider until explicitly migrated.");
+            color: Theme.text-muted; font-size: 12px; wrap: word-wrap;
+        }
+    }
+}

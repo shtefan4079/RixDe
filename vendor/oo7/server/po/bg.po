@@ -1,0 +1,89 @@
+# Bulgarian translation for oo7 po-file.
+# Copyright (C) 2026 twlvnn kraftwerk <kraft_werk@tutanota.com>.
+# Copyright (C) 2026 Alexander Shopov <ash@kambanaria.org>.
+# This file is distributed under the same license as the oo7 package.
+# twlvnn kraftwerk <kraft_werk@tutanota.com>, 2026.
+# Alexander Shopov <ash@kambanaria.org>, 2026.
+msgid ""
+msgstr ""
+"Project-Id-Version: oo7 main\n"
+"Report-Msgid-Bugs-To: https://github.com/linux-credentials/oo7/issues\n"
+"POT-Creation-Date: 2026-09-09 03:38+0000\n"
+"PO-Revision-Date: 2026-09-09 16:38+0200\n"
+"Last-Translator: twlvnn kraftwerk <kraft_werk@tutanota.com>\n"
+"Language-Team: Bulgarian <Bulgarian>\n"
+"Language: bg\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Poedit 3.8\n"
+
+#: ../src/gnome/prompter.rs:151
+msgid "Change Keyring Password"
+msgstr "Промяна на паролата за ключодържателя"
+
+#: ../src/gnome/prompter.rs:152
+#, rust-format
+msgid "Choose a new password for the “{}” keyring"
+msgstr "Изберете нова парола за ключодържателя „{}“"
+
+#: ../src/gnome/prompter.rs:155 ../src/prompt/mod.rs:408
+#, rust-format
+msgid ""
+"An application wants to change the password for the “{}” keyring. Choose the "
+"new password you want to use for it."
+msgstr ""
+"Програма иска да промени паролата за ключодържателя „{}“. Изберете новата "
+"парола, която искате да използвате за него."
+
+#: ../src/gnome/prompter.rs:160
+msgid "This operation cannot be reverted"
+msgstr "Тази операция е необратима"
+
+#: ../src/gnome/prompter.rs:166
+msgid "Continue"
+msgstr "Продължаване"
+
+#: ../src/gnome/prompter.rs:167 ../src/gnome/prompter.rs:193
+#: ../src/gnome/prompter.rs:215
+msgid "Cancel"
+msgstr "Отмяна"
+
+#: ../src/gnome/prompter.rs:177
+msgid "Unlock Keyring"
+msgstr "Отключване на ключодържателя"
+
+#: ../src/gnome/prompter.rs:178
+msgid "Authentication required"
+msgstr "Необходима е идентификация"
+
+#: ../src/gnome/prompter.rs:181 ../src/prompt/mod.rs:398
+#, rust-format
+msgid "An application wants access to the keyring “{}”, but it is locked"
+msgstr "Програма иска достъп до ключодържателя „{}“, но той е заключен"
+
+#: ../src/gnome/prompter.rs:192
+msgid "Unlock"
+msgstr "Отключване"
+
+#: ../src/gnome/prompter.rs:199
+msgid "New Keyring Password"
+msgstr "Нова парола за ключодържателя"
+
+#: ../src/gnome/prompter.rs:200
+msgid "Choose password for new keyring"
+msgstr "Изберете парола за нов ключодържател"
+
+#: ../src/gnome/prompter.rs:203 ../src/prompt/mod.rs:403
+#, rust-format
+msgid ""
+"An application wants to create a new keyring called “{}”. Choose the "
+"password you want to use for it."
+msgstr ""
+"Програма иска да създаде нов ключодържател с име „{}“. Изберете паролата, "
+"която искате да използвате за него."
+
+#: ../src/gnome/prompter.rs:214
+msgid "Create"
+msgstr "Създаване"

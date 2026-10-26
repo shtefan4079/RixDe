@@ -1,0 +1,95 @@
+import { Slider, ToggleSwitch } from "../../../ui/common/controls.slint";
+import { Theme } from "../../../ui/common/theme.slint";
+import { Button } from "std-widgets.slint";
+import { SettingsCard, SettingsRow, SettingsDivider, ValueBadge } from "card.slint";
+
+export struct PluginChoice { id: string, name: string, description: string, capabilities: string, status: string, enabled: bool, available: bool, has-settings: bool }
+
+export global PluginSettings {
+    in-out property <[PluginChoice]> entries;
+    in-out property <string> error;
+    in-out property <int> capture-fps;
+    callback apply-capture-rate();
+    callback toggle(string, bool);
+    callback settings(string);
+    callback reload();
+    callback open-folder();
+}
+
+export component PluginsView inherits Rectangle {
+    background: transparent;
+    preferred-height: content.preferred-height;
+    content := VerticalLayout {
+        spacing: 16px;
+
+        SettingsCard {
+            title: @tr("Desktop extensions and screencast");
+            subtitle: @tr("Manage modular desktop extensions and screen sharing capture rate");
+
+            HorizontalLayout {
+                spacing: 10px;
+                Button { text: @tr("Open extensions folder"); clicked => { PluginSettings.open-folder(); } }
+                Button { text: @tr("Refresh extensions"); clicked => { PluginSettings.reload(); } }
+                Rectangle { horizontal-stretch: 1; }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Screencast capture rate");
+                subtitle: @tr("Maximum frame rate for desktop sharing and video capture");
+                HorizontalLayout {
+                    spacing: 10px; alignment: center;
+                    Slider {
+                        minimum: 1; maximum: 60; step: 5;
+                        value: PluginSettings.capture-fps;
+                        min-width: 140px;
+                        changed(value) => { PluginSettings.capture-fps = round(value); }
+                    }
+                    ValueBadge { text: PluginSettings.capture-fps + " " + @tr("fps"); }
+                }
+            }
+        }
+
+        SettingsCard {
+            title: @tr("Installed extensions");
+            subtitle: @tr("Extensions run as isolated processes with session capability permissions");
+
+            if PluginSettings.entries.length == 0: Text {
+                text: @tr("No desktop extensions installed");
+                color: Theme.text-secondary; font-size: 13px;
+            }
+
+            for plugin[index] in PluginSettings.entries: VerticalLayout {
+                spacing: 0px;
+                if index > 0: SettingsDivider {}
+                SettingsRow {
+                    title: plugin.name;
+                    subtitle: plugin.description + (plugin.status != "" ? " · " + plugin.status : "");
+                    HorizontalLayout {
+                        spacing: 10px; alignment: center;
+                        if plugin.has-settings: Button {
+                            text: @tr("Configure…");
+                            enabled: plugin.available;
+                            clicked => { PluginSettings.settings(plugin.id); }
+                        }
+                        ToggleSwitch {
+                            checked: plugin.enabled;
+                            enabled: plugin.available || plugin.enabled;
+                            toggled => { PluginSettings.toggle(plugin.id, self.checked); }
+                        }
+                    }
+                }
+            }
+        }
+
+        if PluginSettings.error != "": Text {
+            text: PluginSettings.error; color: Theme.accent; wrap: word-wrap;
+        }
+
+        Text {
+            text: @tr("Only enable extensions from trusted sources: extensions can interact with your active desktop session.");
+            color: Theme.text-muted; font-size: 12px; wrap: word-wrap;
+        }
+    }
+}

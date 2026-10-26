@@ -1,0 +1,227 @@
+import { Slider, ToggleSwitch } from "../../../ui/common/controls.slint";
+import { Theme } from "../../../ui/common/theme.slint";
+import { Button } from "std-widgets.slint";
+import { ComboBox } from "../../../ui/common/combo_box.slint";
+import { SettingsCard, SettingsRow, SettingsDivider, ValueBadge, RixSpinBox } from "card.slint";
+
+export global BehaviorSettings {
+    in-out property <bool> keyboard: true;
+    in-out property <bool> audio: true;
+    in-out property <bool> network: true;
+    in-out property <bool> amplified;
+    in-out property <bool> previews: true;
+    in-out property <int> week-start;
+    in-out property <int> preview-delay;
+    in-out property <int> preview-refresh;
+    in-out property <int> panel-icon-size;
+    in-out property <int> tray-icon-size;
+    in-out property <bool> switcher-minimized;
+    in-out property <int> switcher-delay;
+    in-out property <int> switcher-width;
+    in-out property <int> switcher-count;
+    in-out property <bool> group-tasks;
+    in-out property <bool> clipboard-enabled;
+    in-out property <bool> clipboard-persist;
+    in-out property <bool> clipboard-images;
+    in-out property <int> clipboard-limit;
+    in-out property <int> animation-duration;
+    in-out property <int> hover-duration;
+    in-out property <int> window-duration;
+    in-out property <bool> window-snap-enabled: true;
+    in-out property <bool> server-side-decorations: true;
+    in-out property <int> window-snap-distance: 28;
+    in-out property <int> window-snap-opacity: 24;
+    callback apply();
+}
+
+export component BehaviorView inherits Rectangle {
+    background: transparent;
+    preferred-height: content.preferred-height;
+    content := VerticalLayout {
+        spacing: 16px;
+
+        SettingsCard {
+            title: @tr("Window management");
+            subtitle: @tr("Decorations and screen edge window snapping");
+
+            SettingsRow {
+                title: @tr("Compositor window decorations");
+                subtitle: @tr("Render title bars and borders around client windows");
+                ToggleSwitch { checked <=> BehaviorSettings.server-side-decorations; }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Window snapping");
+                subtitle: @tr("Maximize or tile windows when dragged to screen edges");
+                ToggleSwitch { checked <=> BehaviorSettings.window-snap-enabled; }
+            }
+
+            if BehaviorSettings.window-snap-enabled: SettingsDivider {}
+
+            if BehaviorSettings.window-snap-enabled: SettingsRow {
+                title: @tr("Edge trigger distance");
+                subtitle: @tr("Screen edge detection threshold in pixels");
+                HorizontalLayout {
+                    spacing: 10px; alignment: center;
+                    Slider {
+                        minimum: 8; maximum: 160; step: 1;
+                        value: BehaviorSettings.window-snap-distance;
+                        min-width: 160px;
+                        changed(v) => { BehaviorSettings.window-snap-distance = round(v); }
+                    }
+                    ValueBadge { text: BehaviorSettings.window-snap-distance + " px"; }
+                }
+            }
+
+            if BehaviorSettings.window-snap-enabled: SettingsDivider {}
+
+            if BehaviorSettings.window-snap-enabled: SettingsRow {
+                title: @tr("Snap preview opacity");
+                subtitle: @tr("Opacity of the window snap zone outline");
+                HorizontalLayout {
+                    spacing: 10px; alignment: center;
+                    Slider {
+                        minimum: 8; maximum: 60; step: 1;
+                        value: BehaviorSettings.window-snap-opacity;
+                        min-width: 160px;
+                        changed(v) => { BehaviorSettings.window-snap-opacity = round(v); }
+                    }
+                    ValueBadge { text: BehaviorSettings.window-snap-opacity + "%"; }
+                }
+            }
+        }
+
+        SettingsCard {
+            title: @tr("Taskbar and window previews");
+            subtitle: @tr("Window grouping and task hover thumbnails");
+
+            SettingsRow {
+                title: @tr("Group windows by application");
+                subtitle: @tr("Combine multiple windows of the same app into a single taskbar item");
+                ToggleSwitch { checked <=> BehaviorSettings.group-tasks; }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Window previews on hover");
+                subtitle: @tr("Show live thumbnail popup when hovering over taskbar items");
+                ToggleSwitch { checked <=> BehaviorSettings.previews; }
+            }
+
+            if BehaviorSettings.previews: SettingsDivider {}
+
+            if BehaviorSettings.previews: SettingsRow {
+                title: @tr("Hover popup delay");
+                subtitle: @tr("Delay before showing thumbnail preview in milliseconds");
+                HorizontalLayout {
+                    spacing: 10px; alignment: center;
+                    Slider {
+                        minimum: 100; maximum: 1500; step: 50;
+                        value: BehaviorSettings.preview-delay;
+                        min-width: 160px;
+                        changed(v) => { BehaviorSettings.preview-delay = round(v); }
+                    }
+                    ValueBadge { text: BehaviorSettings.preview-delay + " ms"; }
+                }
+            }
+        }
+
+        SettingsCard {
+            title: @tr("Window switching · Alt + Tab");
+            subtitle: @tr("Keyboard application switcher behavior and appearance");
+
+            SettingsRow {
+                title: @tr("Include minimized windows");
+                subtitle: @tr("Show minimized applications in the Alt+Tab switcher");
+                ToggleSwitch { checked <=> BehaviorSettings.switcher-minimized; }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Switcher card width");
+                subtitle: @tr("Preview thumbnail card width in pixels");
+                RixSpinBox {
+                    value <=> BehaviorSettings.switcher-width;
+                    minimum: 160; maximum: 400; step: 20; suffix: " px";
+                }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Visible window cards");
+                subtitle: @tr("Maximum number of window thumbnails shown at once");
+                RixSpinBox {
+                    value <=> BehaviorSettings.switcher-count;
+                    minimum: 1; maximum: 7; step: 1;
+                }
+            }
+        }
+
+        SettingsCard {
+            title: @tr("Clipboard history");
+            subtitle: @tr("Remember copied text and images across applications");
+
+            SettingsRow {
+                title: @tr("Enable clipboard history");
+                subtitle: @tr("Record copied items accessible via Win + V");
+                ToggleSwitch { checked <=> BehaviorSettings.clipboard-enabled; }
+            }
+
+            if BehaviorSettings.clipboard-enabled: SettingsDivider {}
+
+            if BehaviorSettings.clipboard-enabled: SettingsRow {
+                title: @tr("Keep history after restart");
+                subtitle: @tr("Persist clipboard items across system reboots");
+                ToggleSwitch { checked <=> BehaviorSettings.clipboard-persist; }
+            }
+
+            if BehaviorSettings.clipboard-enabled: SettingsDivider {}
+
+            if BehaviorSettings.clipboard-enabled: SettingsRow {
+                title: @tr("Save copied images");
+                subtitle: @tr("Store images and screenshots in clipboard history");
+                ToggleSwitch { checked <=> BehaviorSettings.clipboard-images; }
+            }
+
+            if BehaviorSettings.clipboard-enabled: SettingsDivider {}
+
+            if BehaviorSettings.clipboard-enabled: SettingsRow {
+                title: @tr("History item limit");
+                subtitle: @tr("Maximum number of stored clipboard entries");
+                RixSpinBox {
+                    value <=> BehaviorSettings.clipboard-limit;
+                    minimum: 1; maximum: 200; step: 5;
+                }
+            }
+        }
+
+        SettingsCard {
+            title: @tr("Animations");
+            subtitle: @tr("Window and menu transition animation duration");
+
+            SettingsRow {
+                title: @tr("Animation duration");
+                subtitle: @tr("Speed of menu openings and window transitions");
+                HorizontalLayout {
+                    spacing: 10px; alignment: center;
+                    Slider {
+                        minimum: 0; maximum: 500; step: 25;
+                        value: BehaviorSettings.animation-duration;
+                        min-width: 160px;
+                        changed(v) => {
+                            BehaviorSettings.animation-duration = round(v / 10) * 10;
+                            BehaviorSettings.window-duration = BehaviorSettings.animation-duration;
+                            BehaviorSettings.hover-duration = round(BehaviorSettings.animation-duration * 0.4);
+                        }
+                    }
+                    ValueBadge { text: BehaviorSettings.animation-duration == 0 ? @tr("Off") : BehaviorSettings.animation-duration + " ms"; }
+                }
+            }
+        }
+    }
+}

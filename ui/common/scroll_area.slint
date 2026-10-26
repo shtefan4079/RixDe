@@ -1,0 +1,69 @@
+import { Theme } from "theme.slint";
+
+export component ScrollArea inherits Rectangle {
+    in property <length> content-height;
+    in-out property <length> viewport-y <=> view.viewport-y;
+    in property <length> gutter: Theme.scrollbar-gutter;
+    out property <length> content-width: Math.max(0px, root.width - root.gutter);
+    private property <length> maximum: Math.max(0px, root.content-height - root.height);
+    changed maximum => { root.viewport-y = Math.max(-root.maximum, Math.min(0px, root.viewport-y)); }
+    clip: true;
+
+    public function reveal(top: length, bottom: length) {
+        if top < -root.viewport-y { root.viewport-y = -top; }
+        else if bottom > -root.viewport-y + root.height { root.viewport-y = root.height - bottom; }
+        root.viewport-y = Math.max(-root.maximum, Math.min(0px, root.viewport-y));
+    }
+
+    view := Flickable {
+
+        interactive: false;
+        x: 0px; y: 0px;
+        width: root.content-width;
+        height: root.height;
+        viewport-width: self.width;
+        viewport-height: Math.max(root.height, root.content-height);
+        @children
+    }
+
+    if root.maximum > 0px: Rectangle {
+        x: root.width - Theme.scrollbar-gutter;
+        width: Theme.scrollbar-gutter;
+        height: root.height;
+        private property <length> thumb-height: Math.min(self.height, Math.max(Theme.scrollbar-min-thumb, self.height * self.height / root.content-height));
+        private property <length> travel: Math.max(0px, self.height - self.thumb-height);
+        private property <length> thumb-y: self.travel * Math.max(0, Math.min(1, -root.viewport-y / root.maximum));
+        thumb := Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: parent.thumb-y;
+            width: scroll-touch.has-hover || scroll-touch.pressed ? Theme.scrollbar-hover-width : Theme.scrollbar-width;
+            height: parent.thumb-height;
+            border-radius: self.width / 2;
+            background: scroll-touch.pressed ? Theme.accent : scroll-touch.has-hover ? Theme.scrollbar-hover : Theme.scrollbar;
+            animate width, background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+        }
+        scroll-touch := TouchArea {
+            private property <length> grab-offset;
+            private property <bool> dragging;
+            pointer-event(event) => {
+                if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                    self.dragging = self.mouse-y >= parent.thumb-y && self.mouse-y <= parent.thumb-y + parent.thumb-height;
+                    self.grab-offset = self.mouse-y - parent.thumb-y;
+                    if !self.dragging {
+                        root.viewport-y = Math.max(-root.maximum, Math.min(0px, root.viewport-y + (self.mouse-y < parent.thumb-y ? root.height : -root.height)));
+                    }
+                }
+                if event.kind == PointerEventKind.cancel || event.kind == PointerEventKind.up { self.dragging = false; }
+            }
+            moved => {
+                if self.pressed && self.dragging && parent.travel > 0px {
+                    root.viewport-y = -root.maximum * Math.max(0, Math.min(1, (self.mouse-y - self.grab-offset) / parent.travel));
+                }
+            }
+            scroll-event(event) => {
+                root.viewport-y = Math.max(-root.maximum, Math.min(0px, root.viewport-y + event.delta-y));
+                accept
+            }
+        }
+    }
+}

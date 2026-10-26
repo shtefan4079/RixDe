@@ -1,0 +1,25 @@
+export struct SkinFrame {
+    available: bool,
+    cache-key: int,
+    corner-radius: float,
+    top-left: image, top: image, top-right: image,
+    left: image, center: image, right: image,
+    bottom-left: image, bottom: image, bottom-right: image,
+    left-width: float, right-width: float, top-height: float, bottom-height: float,
+    center-is-solid: bool, center-color: color,
+}
+
+export global SkinRenderer {
+    pure callback render(SkinFrame, float, float, bool) -> image;
+    pure callback render-rounded(SkinFrame, float, float, bool, float) -> image;
+}
+export component ThemeFrame inherits Image {
+    in property <bool> square-corners;
+    in property <SkinFrame> skin;
+    in property <float> material-opacity: 1;
+
+    in property <length> corner-radius: -1px;
+    opacity: root.material-opacity;
+    source: root.corner-radius < 0px ? SkinRenderer.render(root.skin, root.width / 1px, root.height / 1px, root.square-corners) : SkinRenderer.render-rounded(root.skin, root.width / 1px, root.height / 1px, root.square-corners, root.corner-radius / 1px);
+    image-fit: fill;
+}

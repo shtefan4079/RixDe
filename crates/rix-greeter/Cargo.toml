@@ -1,0 +1,18 @@
+[package]
+name = "rix-greeter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+rix-login-ui = { path = "../rix-login-ui" }
+rix-dm = { path = "../rix-dm" }
+rix-auth = { path = "../rix-auth" }
+rix-shell-adapter.workspace = true
+slint.workspace = true
+clap.workspace = true
+libc.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

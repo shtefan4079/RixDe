@@ -1,0 +1,4 @@
+[portal]
+DBusName=org.freedesktop.impl.portal.desktop.rix
+Interfaces=org.freedesktop.impl.portal.Settings;
+UseIn=RIX;

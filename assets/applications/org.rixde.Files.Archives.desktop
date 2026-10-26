@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Rix Files Archives
+Comment=Browse and extract archives in Rix Files
+Exec=rix-files --view %U
+TryExec=rix-files
+Icon=package-x-generic
+Terminal=false
+Categories=Utility;Archiving;
+MimeType=application/zip;application/x-7z-compressed;application/x-tar;application/gzip;application/x-xz;application/x-bzip2;application/zstd;application/x-compressed-tar;application/x-xz-compressed-tar;application/x-bzip-compressed-tar;application/vnd.rar;application/x-rar;
+NoDisplay=true

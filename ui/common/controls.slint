@@ -1,0 +1,103 @@
+import { Theme } from "theme.slint";
+
+export component Slider inherits Rectangle {
+    in property <bool> enabled: true;
+    in property <float> minimum: 0;
+    in property <float> maximum: 100;
+    in property <float> step: (root.maximum - root.minimum) / 100;
+    in-out property <float> value: root.minimum;
+    callback changed(float);
+    callback released(float);
+    private property <length> handle-size: Theme.icon-size-sm;
+    private property <float> fraction: root.maximum > root.minimum ? Math.clamp((root.value - root.minimum) / (root.maximum - root.minimum), 0, 1) : 0;
+    min-width: Theme.icon-size-sm * 6;
+    min-height: Theme.menu-action-size;
+    preferred-height: Theme.menu-action-size;
+    vertical-stretch: 0;
+    horizontal-stretch: 1;
+    opacity: root.enabled ? 1 : 0.45;
+    forward-focus: keys;
+    accessible-role: slider;
+    accessible-value: root.value;
+    public function set-value(v: float) {
+        let bounded = Math.clamp(v, root.minimum, Math.max(root.minimum, root.maximum));
+        if root.value != bounded { root.value = bounded; root.changed(bounded); }
+    }
+    function drag() {
+        root.set-value(root.minimum + Math.clamp((touch.mouse-x - root.handle-size / 2) / Math.max(1px, root.width - root.handle-size), 0, 1) * (root.maximum - root.minimum));
+    }
+    Rectangle {
+        x: root.handle-size / 2; y: (root.height - self.height) / 2;
+        width: root.width - root.handle-size; height: Theme.spacing-xs;
+        border-radius: self.height / 2; background: Theme.control-border;
+        Rectangle { x: 0px; y: 0px; width: parent.width * root.fraction; height: 100%; border-radius: self.height / 2; background: Theme.accent; }
+    }
+    Rectangle {
+        x: (root.width - root.handle-size) * root.fraction;
+        y: (root.height - self.height) / 2;
+        width: root.handle-size; height: self.width; border-radius: self.width / 2;
+        background: Theme.text-primary;
+        border-width: touch.pressed || keys.has-focus ? 2px : 1px;
+        border-color: touch.has-hover || keys.has-focus ? Theme.accent : Theme.control-border;
+        animate border-color { duration: Theme.hover-duration * 1ms; }
+    }
+    keys := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if event.text == Key.LeftArrow || event.text == Key.DownArrow { root.set-value(root.value - root.step); return accept; }
+            if event.text == Key.RightArrow || event.text == Key.UpArrow { root.set-value(root.value + root.step); return accept; }
+            if event.text == Key.Home { root.set-value(root.minimum); return accept; }
+            if event.text == Key.End { root.set-value(root.maximum); return accept; }
+            reject
+        }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        pointer-event(event) => {
+            if event.button == PointerEventButton.left && event.kind == PointerEventKind.down { keys.focus(); root.drag(); }
+            if event.button == PointerEventButton.left && event.kind == PointerEventKind.up { root.released(root.value); }
+        }
+        moved => { if self.pressed { root.drag(); } }
+        scroll-event(event) => { if self.pressed { return accept; } reject }
+    }
+}
+
+export component ToggleSwitch inherits Rectangle {
+    in property <bool> enabled: true;
+    in property <string> text;
+    in-out property <bool> checked;
+    callback toggled();
+    min-height: Theme.menu-action-size;
+    preferred-width: contents.preferred-width;
+    horizontal-stretch: 0;
+    opacity: root.enabled ? 1 : 0.45;
+    forward-focus: keys;
+    accessible-role: checkbox;
+    accessible-label: root.text;
+    accessible-checked: root.checked;
+    contents := HorizontalLayout {
+        spacing: Theme.default-spacing; alignment: center;
+        Text { text: root.text; color: Theme.text-primary; font-size: Theme.font-size-md; vertical-alignment: center; }
+        Rectangle {
+            width: Theme.icon-size-sm * 2.5; height: Theme.icon-size-sm * 1.4;
+            border-radius: self.height / 2;
+            background: root.checked ? Theme.accent : Theme.control-surface;
+            border-width: 1px; border-color: keys.has-focus ? Theme.text-primary : Theme.control-border;
+            animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+            Rectangle {
+                x: root.checked ? parent.width - self.width - 3px : 3px;
+                y: 3px; height: parent.height - 6px; width: self.height;
+                border-radius: self.height / 2; background: Theme.text-primary;
+                animate x { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+            }
+        }
+    }
+    keys := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if event.text == " " || event.text == Key.Return { root.checked = !root.checked; root.toggled(); return accept; }
+            reject
+        }
+    }
+    TouchArea { enabled: root.enabled; mouse-cursor: pointer; clicked => { keys.focus(); root.checked = !root.checked; root.toggled(); } }
+}

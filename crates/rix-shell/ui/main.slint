@@ -1,0 +1,535 @@
+import { Slider } from "../../../ui/common/controls.slint";
+import { PopupGeometry } from "../../../ui/common/popup_geometry.slint";
+import { MenuStyle } from "../../../ui/common/context_menu.slint";
+import { TaskPreviews, PreviewItem } from "widgets/previews.slint";
+export { PreviewItem }
+import { ClipboardView, ClipboardState, ClipboardItem } from "widgets/clipboard.slint";
+export { ClipboardState, ClipboardItem }
+import { WindowSwitcher, SwitcherItem } from "widgets/switcher.slint";
+export { SwitcherItem }
+import { Icons } from "icons.slint";
+import { ThemeFrame } from "frame.slint";
+import { SystemState, AudioRow, NetworkRow, NetworkDeviceRow, NetworkProfileDraft, CalendarDay, KeyboardRow, AudioView, NetworkView, CalendarView, KeyboardView } from "../../../ui/common/system.slint";
+export { SystemState, AudioRow, NetworkRow, NetworkDeviceRow, NetworkProfileDraft, CalendarDay, KeyboardRow }
+import { LauncherActionData } from "widgets/launcher_footer.slint";
+import { PlaceData } from "widgets/places.slint";
+import { TrayItemData } from "widgets/tray.slint";
+import { SkinFrame, SkinRenderer } from "frame.slint";
+import { Theme } from "theme.slint";
+import { PanelView, PanelWidgetData } from "panel.slint";
+import { EditModeToolbar } from "edit_mode.slint";
+import { TaskbarItemData, TaskWindowData } from "widgets/taskbar.slint";
+import { AppMenu, AppEntryData, MenuCategoryData } from "widgets/app_menu.slint";
+import { ContextMenu, ContextMenuItemData } from "widgets/context_menu.slint";
+import { SessionDialog } from "widgets/session_dialog.slint";
+import { SecurityScreen, SecurityActionItem } from "widgets/security_screen.slint";
+
+export { Palette } from "std-widgets.slint";
+import { Button, } from "std-widgets.slint";
+
+export { LauncherActionData, PlaceData, TrayItemData, SkinFrame, SkinRenderer, TaskbarItemData, TaskWindowData, AppEntryData, MenuCategoryData, PanelWidgetData, ContextMenuItemData, MenuStyle, Theme, SecurityActionItem }
+
+export struct SurfaceRegion { x: float, y: float, width: float, height: float, radius: float, opacity: float, clip-x: float, clip-y: float, clip-width: float, clip-height: float }
+
+export component RixPanelWindow inherits Window {
+    title: "Rix Panel";
+    default-font-family: Theme.font-family;
+    background: Colors.transparent;
+    always-on-top: true;
+    no-frame: true;
+    in-out property <bool> maximized-window;
+    in-out property <bool> fullscreen-window;
+    private property <bool> panel-shown: !root.fullscreen-window || root.menu-visible || root.edit-visible || root.system-visible || root.context-visible || root.switcher-visible;
+
+    pure function popup-region(w: length, h: length, anchor: length, progress: float) -> SurfaceRegion {
+        let width = Math.min(w, root.width);
+        let height = Math.min(h, root.available-height * 1px - root.panel-extent - Theme.menu-gap);
+        let visible-height = Math.max(0px, height * progress);
+        return { x: round(Math.max(0px, Math.min(anchor - width / 2, root.width - width)) / 1px),
+            y: (root.panel-at-top ? root.panel-extent + Theme.menu-gap - height + visible-height : root.height - root.panel-extent - Theme.menu-gap - visible-height) / 1px,
+            width: width / 1px, height: height / 1px, radius: Theme.menu-frame.available ? Theme.menu-frame.corner-radius : Theme.default-radius / 1px, opacity: progress,
+            clip-x: 0, clip-y: root.panel-at-top ? root.panel-extent / 1px : 0,
+            clip-width: root.width / 1px, clip-height: (root.height - root.panel-extent) / 1px };
+    }
+    out property <[SurfaceRegion]> surface-regions: [
+        { x: root.panel-offset, y: (root.panel-at-top ? root.effective-panel-bottom-margin * 1px : root.height - root.panel-extent) / 1px,
+          width: root.panel-content-width, height: root.panel-shown ? root.thickness : 0, radius: root.effective-panel-floating ? (root.use-theme-frame && Theme.panel-frame.available ? Theme.panel-frame.corner-radius : root.corner-radius) : 0, opacity: root.panel-opacity },
+        root.popup-region(root.menu-width * 1px, root.menu-height * 1px, (root.launcher-x + root.launcher-width * root.menu-alignment) * 1px + root.menu-width * 1px * (0.5 - root.menu-alignment), root.menu-visible ? root.menu-progress : 0),
+        root.popup-region(Theme.editor-width, Theme.editor-height, (root.panel-offset + root.panel-content-width / 2) * 1px, root.edit-visible ? root.edit-progress : 0),
+        root.popup-region(Theme.system-popup-width, root.system-height, root.system-anchor, root.system-visible ? root.system-progress : 0),
+        root.popup-region(root.preview-total-width, root.preview-total-height, root.preview-anchor, root.preview-painted ? root.preview-progress : 0),
+        { x: PopupGeometry.coordinate(root.context-menu-x, root.context-region-width, root.width, Theme.spacing-xs, false) / 1px,
+          y: PopupGeometry.coordinate(root.height - root.context-region-bottom, root.context-region-height, root.height, Theme.spacing-xs, !root.context-prefer-below) / 1px,
+          width: root.context-region-width / 1px, height: root.context-visible && !MenuStyle.native-popups ? root.context-region-height / 1px : 0, radius: Theme.context-menu-radius / 1px, opacity: root.context-progress },
+        { x: 0, y: 0, width: root.width / 1px, height: root.security-screen-visible || root.session-dialog-visible || root.switcher-visible || root.switcher-progress > 0 ? root.height / 1px : 0, radius: 0, opacity: root.security-screen-visible || root.session-dialog-visible ? 1 : root.switcher-progress }
+    ];
+    private property <length> context-region-width: PopupGeometry.extent(root.context-menu-width > 0px ? root.context-menu-width : MenuStyle.minimum-width, root.width, Theme.spacing-xs);
+    private property <length> context-region-height: PopupGeometry.extent(Math.min(Theme.context-menu-max-height, root.context-content-height + Theme.context-menu-padding * 2), root.height, Theme.spacing-xs);
+    private property <length> context-region-bottom: root.panel-at-top ? root.height - root.context-menu-top : root.context-menu-bottom;
+    private property <length> preview-total-width: Math.min(root.preview-capacity, root.preview-items.length - root.preview-page * root.preview-capacity) * (Theme.preview-width + Theme.default-spacing) - Theme.default-spacing + Theme.spacing-xl * 2;
+    private property <length> preview-total-height: Theme.preview-height + Theme.preview-header-height * (1 + (root.preview-has-audio ? 1 : 0) + (root.preview-items.length > root.preview-capacity ? 1 : 0)) + Theme.spacing-xl * 2 + Theme.default-spacing;
+    in-out property <[PreviewItem]> preview-items;
+    in-out property <int> preview-page;
+    out property <int> preview-capacity: Math.max(1, floor((root.width - Theme.spacing-xl * 2 + Theme.default-spacing) / (Theme.preview-width + Theme.default-spacing)));
+    in-out property <bool> preview-pinned;
+    callback preview-open-group(int, length);
+    changed preview-visible => { if !root.preview-visible { root.preview-pinned = false; } }
+
+    in-out property <[SwitcherItem]> switcher-items;
+    in-out property <bool> capture-active;
+    in-out property <string> capture-error;
+    callback stop-capture();
+    in-out property <bool> switcher-requested;
+    in-out property <bool> switcher-visible;
+    private property <float> switcher-progress: root.switcher-visible ? 1 : 0;
+    animate switcher-progress { duration: Theme.popup-duration * 1ms; easing: cubic-bezier(0.16, 1, 0.3, 1); }
+    in-out property <int> switcher-generation;
+    in-out property <int> switcher-delay;
+    in-out property <int> switcher-selected;
+    in-out property <int> switcher-position;
+    in-out property <int> switcher-total;
+    in-out property <length> switcher-card-width;
+    callback switcher-choose(int);
+    in-out property <bool> previews-enabled: true;
+    in-out property <bool> preview-visible;
+    private property <float> preview-progress: root.preview-visible ? 1 : 0;
+    private property <bool> preview-painted: root.preview-visible || root.preview-progress > 0;
+    animate preview-progress { duration: Theme.popup-duration * 1ms; easing: cubic-bezier(0.16, 1, 0.3, 1); }
+    callback preview-activate(int);
+    callback preview-dismiss();
+    in-out property <int> preview-id;
+    in-out property <length> preview-anchor;
+    callback task-hover(int, bool, length);
+    callback preview-hover(bool);
+    callback preview-completed();
+    callback preview-close-window(int);
+    in-out property <string> system-popup;
+    private property <string> last-system-popup;
+    private property <bool> system-visible: root.system-popup != "" || root.system-progress > 0;
+    in-out property <length> system-anchor;
+    in-out property <[string]> system-modules: ["keyboard", "audio", "network"];
+    callback open-system-popup(string, length);
+    in-out property <bool> session-dialog-visible: false;
+    in-out property <string> session-dialog-action: "";
+    in-out property <string> session-dialog-title: "";
+    in-out property <string> session-dialog-message: "";
+    in-out property <string> session-dialog-confirm-label: "";
+    in-out property <bool> session-dialog-is-danger: false;
+    in-out property <image> session-dialog-icon;
+    in-out property <bool> session-dialog-has-icon: false;
+    callback session-dialog-confirmed(string);
+    callback session-dialog-cancelled();
+    in-out property <bool> security-screen-visible: false;
+    in-out property <[SecurityActionItem]> security-actions;
+    callback security-action(string);
+    callback security-dismissed();
+    out property <float> system-progress: root.system-popup == "" ? 0 : 1;
+    animate system-progress { duration: Theme.popup-duration * 1ms; easing: cubic-bezier(0.16, 1, 0.3, 1); }
+    changed system-popup => { if root.system-popup != "" { root.last-system-popup = root.system-popup; } SystemState.network-visible(root.system-popup == "network"); root.surface-state-changed(root.session-dialog-visible || root.taskbar-drag-active || root.system-popup != "" || root.is-app-menu-open || root.is-context-menu-open || root.is-edit-mode); }
+    in-out property <float> panel-offset;
+    in-out property <float> panel-content-width;
+    in-out property <bool> panel-at-top;
+    in-out property <int> panel-alignment: 1;
+    in-out property <int> panel-length-mode;
+    in-out property <int> panel-fixed-length: 900;
+    in-out property <bool> panel-reserve-space: true;
+    in-out property <float> panel-opacity: 1;
+    in-out property <string> selected-widget;
+    in-out property <string> selected-widget-title;
+    in-out property <int> selected-widget-section;
+    in-out property <string> panel-edit-error;
+    callback set-panel-option(string, float);
+    callback select-widget(string);
+    callback move-widget(string, float);
+    callback add-widget(int);
+    callback remove-widget();
+    callback set-widget-section(int);
+    in-out property <int> thickness: 46;
+    in-out property <bool> floating: true;
+    in-out property <int> corner-radius: 8;
+    in-out property <bool> use-theme-frame: true;
+    in-out property <int> floating-margin: 4;
+
+    in-out property <bool> is-on-desktop: true;
+    out property <bool> effective-panel-floating: root.floating && root.is-on-desktop && !root.maximized-window;
+    out property <int> effective-panel-margin: root.floating ? root.floating-margin : 0;
+    out property <int> effective-panel-bottom-margin: root.effective-panel-floating ? root.floating-margin : 0;
+    out property <int> panel-reserved-extent: root.panel-reserve-space ? root.thickness + root.effective-panel-margin : 0;
+    changed panel-reserved-extent => { root.surface-exclusive-zone-changed(root.panel-reserved-extent); }
+    in-out property <int> available-height: 2160;
+    in-out property <int> panel-width: 1920;
+    in-out property <int> menu-width: 700;
+    in-out property <int> menu-height: 720;
+    in-out property <string> user-name: "User";
+    in-out property <string> user-initial: "U";
+    in-out property <[PanelWidgetData]> widgets;
+    in-out property <float> launcher-x;
+    in-out property <float> launcher-width;
+    in-out property <float> menu-alignment: 0.5;
+    callback reflow-panel();
+    changed width => { root.reflow-panel(); }
+    in-out property <bool> taskbar-show-labels: false;
+    in-out property <image> launcher-icon;
+    in-out property <bool> has-launcher-icon: false;
+    in-out property <bool> is-edit-mode: false;
+    private property <float> edit-progress: root.is-edit-mode ? 1 : 0;
+    private property <bool> edit-visible: root.is-edit-mode || root.edit-progress > 0;
+    animate edit-progress { duration: Theme.popup-duration * 1ms; easing: cubic-bezier(0.16, 1, 0.3, 1); }
+    in-out property <bool> is-app-menu-open: false;
+    in-out property <bool> launcher-pinned: false;
+    out property <float> menu-progress: root.is-app-menu-open ? 1 : 0;
+    private property <bool> menu-visible: root.is-app-menu-open || root.menu-progress > 0;
+    animate menu-progress { duration: Theme.popup-duration * 1ms; easing: cubic-bezier(0.16, 1, 0.3, 1); }
+    in-out property <bool> desktop-context;
+    in-out property <bool> is-context-menu-open: false;
+    private property <bool> context-popup-open: context-popup.is-open;
+    changed context-popup-open => { if !root.context-popup-open && root.is-context-menu-open { root.close-context-menu(); } }
+    private property <bool> context-desktop-latched;
+    private property <float> context-progress: root.is-context-menu-open ? 1 : 0;
+    private property <bool> context-visible: root.is-context-menu-open || root.context-progress > 0;
+    animate context-progress { duration: Theme.popup-duration * 1ms; easing: cubic-bezier(0.16, 1, 0.3, 1); }
+    in-out property <length> context-menu-x: 100px;
+    in-out property <length> context-menu-width: 0px;
+    in-out property <length> context-menu-bottom: 0px;
+    in-out property <length> context-menu-top: 0px;
+    in-out property <[ContextMenuItemData]> context-menu-items;
+    in-out property <length> context-content-height;
+    in-out property <int> context-selected-index: -1;
+    in-out property <bool> context-can-go-back;
+    in-out property <bool> context-prefer-below;
+    in-out property <int> menu-focus-generation;
+    callback context-go-back();
+    callback context-enter-submenu();
+    callback context-select-edge(bool);
+    callback navigate-context-menu(int);
+    callback activate-context-selection();
+    in-out property <bool> context-is-tray: false;
+    callback tray-menu-selected(string);
+    callback tray-menu-closed();
+    in-out property <[int]> context-target-windows;
+    in-out property <int> context-menu-target-id: 0;
+    in-out property <string> context-menu-target-exec: "";
+    in-out property <string> time-str: "12:00";
+    in-out property <string> date-str: "Mon, 15 Sep";
+    in-out property <[TaskbarItemData]> taskbar-items;
+    in-out property <[TrayItemData]> tray-items;
+    callback tray-action(string, int, length, length);
+    callback tray-scroll(string, int);
+    in-out property <int> taskbar-width: 32;
+    in-out property <[AppEntryData]> apps;
+    in-out property <[AppEntryData]> favorite-apps;
+    in-out property <[MenuCategoryData]> categories;
+    in-out property <string> selected-category: "favorites";
+    in-out property <string> app-search-query: "";
+
+    callback surface-state-changed(bool);
+    callback surface-overlay-changed(bool);
+    callback surface-output-fullscreen-changed(bool);
+    callback surface-exclusive-zone-changed(int);
+    changed fullscreen-window => { root.surface-output-fullscreen-changed(root.fullscreen-window); }
+    private property <bool> overlay-painted: root.security-screen-visible || root.menu-visible || root.edit-visible || root.system-visible || root.context-visible || root.preview-painted || root.switcher-visible || root.switcher-progress > 0;
+    changed overlay-painted => { root.surface-overlay-changed(root.overlay-painted); }
+    changed is-app-menu-open => {
+        if !root.is-app-menu-open { root.app-menu-closed(); }
+        root.surface-state-changed(root.security-screen-visible || root.session-dialog-visible || root.taskbar-drag-active || root.is-app-menu-open || root.is-context-menu-open || root.is-edit-mode || root.system-popup != "");
+    }
+    changed is-context-menu-open => {
+        if root.is-context-menu-open {
+            root.context-desktop-latched = root.desktop-context;
+            context-popup.show();
+        } else { context-popup.close(); }
+        root.surface-state-changed(root.security-screen-visible || root.session-dialog-visible || root.taskbar-drag-active || root.is-app-menu-open || root.is-context-menu-open || root.is-edit-mode || root.system-popup != "");
+    }
+    changed is-edit-mode => { root.surface-state-changed(root.security-screen-visible || root.session-dialog-visible || root.taskbar-drag-active || root.is-app-menu-open || root.is-context-menu-open || root.is-edit-mode || root.system-popup != ""); }
+    changed session-dialog-visible => { root.surface-state-changed(root.security-screen-visible || root.session-dialog-visible || root.taskbar-drag-active || root.is-app-menu-open || root.is-context-menu-open || root.is-edit-mode || root.system-popup != ""); }
+    changed security-screen-visible => { root.surface-state-changed(root.security-screen-visible || root.session-dialog-visible || root.taskbar-drag-active || root.is-app-menu-open || root.is-context-menu-open || root.is-edit-mode || root.system-popup != ""); }
+    callback change-thickness(int);
+    callback toggle-floating();
+    callback change-radius(int);
+    callback exit-edit-mode();
+    callback toggle-edit-mode();
+    callback toggle-app-menu();
+    callback open-app-menu();
+    callback close-app-menu();
+    callback app-menu-closed();
+    callback launch-app(string);
+    callback search-query-changed(string);
+    callback taskbar-item-clicked(int);
+    callback taskbar-drag-started(int);
+    callback taskbar-item-moved(int, int);
+    out property <bool> taskbar-drag-active: panel-view.taskbar-drag-active;
+    public function cancel-taskbar-drag() { panel-view.cancel-taskbar-drag(); }
+    changed taskbar-drag-active => { root.surface-state-changed(root.session-dialog-visible || root.taskbar-drag-active || root.is-app-menu-open || root.is-context-menu-open || root.is-edit-mode || root.system-popup != ""); }
+    callback task-audio-toggle(int);
+    callback task-audio-volume(int, int);
+    in-out property <bool> preview-has-audio;
+    in-out property <bool> preview-audio-muted;
+    in-out property <int> preview-audio-volume;
+    callback panel-context-menu(length, length);
+    callback taskbar-context-menu(int, length, length);
+    callback app-context-menu(string, length, length);
+    callback context-menu-selected(string, int, string);
+    callback close-context-menu();
+    callback tray-clicked();
+    callback launcher-settings();
+    callback show-desktop-clicked();
+    callback category-selected(string);
+    callback power-action(string);
+    callback open-place(string);
+    in-out property <[PlaceData]> places;
+    in-out property <[LauncherActionData]> launcher-start-actions;
+    in-out property <[LauncherActionData]> launcher-end-actions;
+    in-out property <string> launcher-message;
+
+    private property <length> panel-extent: (root.thickness + root.effective-panel-bottom-margin) * 1px;
+    private property <length> system-height: root.last-system-popup == "calendar" ? (Theme.calendar-cell-height * 7 + Theme.spacing-xl * 2 + Theme.spacing-lg * 2 + 76px) : Theme.system-popup-height;
+    private property <length> context-extent: Math.min(Theme.context-menu-max-height, root.context-content-height + Theme.context-menu-padding * 2);
+
+    height: root.available-height * 1px;
+
+    width: root.panel-width * 1px;
+
+    if root.menu-visible: Rectangle {
+        x: 0px; y: root.panel-at-top ? root.panel-extent : 0px;
+        width: root.width; height: root.height - root.panel-extent;
+        clip: true;
+        app-menu := AppMenu {
+        pinned <=> root.launcher-pinned;
+        opacity: root.menu-progress;
+        x: round(Math.max(0px, Math.min((root.launcher-x + root.launcher-width * root.menu-alignment) * 1px - self.width * root.menu-alignment, root.width - self.width)) / 1px) * 1px;
+        y: root.panel-at-top ? Theme.menu-gap - (1 - root.menu-progress) * self.height : parent.height - Theme.menu-gap - root.menu-progress * self.height;
+        focus-generation: root.menu-focus-generation;
+        start-actions: root.launcher-start-actions;
+        end-actions: root.launcher-end-actions;
+        places: root.places;
+        message <=> root.launcher-message;
+        open-place(path) => { root.open-place(path); }
+        menu-width: root.menu-width;
+        menu-height: Math.min(root.menu-height, (root.available-height * 1px - root.panel-extent - Theme.menu-gap) / 1px);
+        user-name: root.user-name;
+        user-initial: root.user-initial;
+        apps: root.apps;
+        favorites: root.favorite-apps;
+        categories: root.categories;
+        selected-category: root.selected-category;
+        search-query <=> root.app-search-query;
+        launch-app(exec) => { root.launch-app(exec); }
+        close-menu => { root.close-app-menu(); }
+        search-changed(q) => { root.search-query-changed(q); }
+        category-selected(key) => { root.category-selected(key); }
+        app-context-menu(exec, x, y) => { root.app-context-menu(exec, x, y); }
+        open-settings => { root.launcher-settings(); }
+        power-action(action) => { root.power-action(action); }
+        if !root.is-app-menu-open: TouchArea { width: 100%; height: 100%; }
+    }
+
+    }
+
+    if root.edit-visible: Rectangle {
+        y: root.panel-at-top ? root.panel-extent : 0px;
+        width: root.width; height: root.height - root.panel-extent; clip: true;
+        EditModeToolbar {
+        opacity: root.edit-progress;
+        x: round(Math.max(0px, Math.min(root.panel-offset * 1px + (root.panel-content-width * 1px - self.width) / 2, root.width - self.width)) / 1px) * 1px;
+        y: root.panel-at-top ? Theme.menu-gap - (1 - root.edit-progress) * self.height : parent.height - Theme.menu-gap - root.edit-progress * self.height;
+        width: Math.min(Theme.editor-width, root.width);
+        height: Math.min(Theme.editor-height, root.available-height * 1px - root.panel-extent - Theme.menu-gap);
+        thickness: root.thickness;
+        floating: root.floating;
+        margin: root.floating-margin;
+        at-top: root.panel-at-top;
+        alignment: root.panel-alignment;
+        length-mode: root.panel-length-mode;
+        fixed-length: root.panel-fixed-length;
+        reserve-space: root.panel-reserve-space;
+        panel-opacity: root.panel-opacity;
+        selected-widget: root.selected-widget-title;
+        widget-section: root.selected-widget-section;
+        error-message: root.panel-edit-error;
+        option-changed(key, value) => { root.set-panel-option(key, value); }
+        add-widget(kind) => { root.add-widget(kind); }
+        remove-widget => { root.remove-widget(); }
+        set-widget-section(section) => { root.set-widget-section(section); }
+        exit-edit-mode => { root.exit-edit-mode(); }
+    }
+
+    }
+
+    if root.system-visible: popup-focus := FocusScope {
+        x: 0px; y: 0px;
+        width: root.width; height: root.height;
+        init => { self.focus(); }
+        key-pressed(event) => { if event.text == Key.Escape { root.system-popup = ""; return accept; } reject }
+        TouchArea { width: 100%; height: 100%; clicked => { root.system-popup = ""; } }
+        Rectangle {
+            y: root.panel-at-top ? root.panel-extent : 0px;
+            width: root.width; height: root.height - root.panel-extent;
+            clip: true;
+        Rectangle {
+            x: round(Math.max(0px, Math.min(root.system-anchor - self.width / 2, root.width - self.width)) / 1px) * 1px;
+            y: root.panel-at-top ? Theme.menu-gap - (1 - root.system-progress) * self.height : parent.height - Theme.menu-gap - root.system-progress * self.height;
+            width: Math.min(root.width, Theme.system-popup-width);
+            height: Math.min(root.system-height, root.available-height * 1px - root.panel-extent - Theme.menu-gap);
+            opacity: root.system-progress;
+            border-radius: Theme.default-radius;
+            background: Theme.menu-frame.available ? transparent : Theme.menu-bg;
+            if Theme.menu-frame.available: ThemeFrame { width: 100%; height: 100%; skin: Theme.menu-frame; material-opacity: Theme.material-opacity; }
+            TouchArea { width: 100%; height: 100%; }
+            if root.last-system-popup == "clipboard": ClipboardView { width: 100%; height: 100%; }
+            if root.last-system-popup == "audio": AudioView { width: 100%; height: 100%; }
+            if root.last-system-popup == "network": NetworkView { width: 100%; height: 100%; active: root.system-popup == "network"; }
+            if root.last-system-popup == "calendar": CalendarView { width: 100%; height: 100%; }
+            if root.last-system-popup == "keyboard": KeyboardView { width: 100%; height: 100%; }
+            if root.last-system-popup == "capture": VerticalLayout {
+                padding: Theme.spacing-xl; spacing: Theme.spacing-lg;
+                Text { text: @tr("Screen sharing"); color: Theme.text-primary; font-size: Theme.font-size-xl; font-weight: 600; }
+                Text { text: root.capture-active ? @tr("An application is receiving the desktop image.") : @tr("Capture stopped."); color: Theme.text-secondary; wrap: word-wrap; }
+                Text { text: @tr("Stopping disables capture extensions. Enable them in Settings before the next share."); color: Theme.text-muted; wrap: word-wrap; }
+                if root.capture-error != "": Text { text: root.capture-error; color: Theme.danger; wrap: word-wrap; }
+                Button { text: @tr("Stop sharing"); enabled: root.capture-active; clicked => { root.stop-capture(); } }
+                Rectangle { vertical-stretch: 1; }
+            }
+            if root.system-popup == "": TouchArea { width: 100%; height: 100%; }
+        }
+    }
+
+    }
+    if root.preview-painted: Rectangle {
+        y: root.panel-at-top ? root.panel-extent : 0px;
+        width: root.width; height: root.height - root.panel-extent;
+        clip: true;
+        Rectangle {
+        opacity: root.preview-progress;
+        x: round(Math.max(0px, Math.min(root.preview-anchor - self.width / 2, root.width - self.width)) / 1px) * 1px;
+        y: root.panel-at-top ? Theme.menu-gap - (1 - root.preview-progress) * self.height : parent.height - Theme.menu-gap - root.preview-progress * self.height;
+        width: Math.min(root.preview-total-width, root.width);
+        height: Math.min(root.preview-total-height, root.available-height * 1px - root.panel-extent - Theme.menu-gap);
+        background: Theme.menu-frame.available ? transparent : Theme.menu-bg;
+        border-radius: Theme.default-radius;
+        if Theme.menu-frame.available: ThemeFrame { width: 100%; height: 100%; skin: Theme.menu-frame; material-opacity: Theme.material-opacity; }
+        preview-touch := TouchArea {
+            width: 100%;
+            height: 100%;
+            changed has-hover => { root.preview-hover(self.has-hover); }
+            VerticalLayout {
+                width: 100%;
+                height: 100%;
+                padding: Theme.spacing-xl; spacing: Theme.default-spacing;
+                TaskPreviews {
+                    items: root.preview-items; page <=> root.preview-page; capacity: root.preview-capacity;
+                    activate(id) => { root.preview-dismiss(); root.preview-activate(id); root.preview-visible = false; }
+                    close(id) => { root.preview-close-window(id); }
+                }
+                if root.preview-has-audio: HorizontalLayout {
+                    height: Theme.preview-header-height; spacing: Theme.default-spacing;
+                    Button { text: root.preview-audio-muted ? @tr("Unmute") : @tr("Mute"); clicked => { root.task-audio-toggle(root.preview-id); } }
+                    Slider { minimum: 0; maximum: SystemState.maximum-volume; value: root.preview-audio-volume; changed(value) => { root.task-audio-volume(root.preview-id, round(value)); } }
+                }
+            }
+        }
+    }
+    }
+
+    panel-view := PanelView {
+        visible: root.panel-shown;
+        square-corners: !root.effective-panel-floating;
+        task-hover(id, entered, x) => { root.task-hover(id, entered, x); }
+        system-modules: root.system-modules;
+        open-system-popup(kind, x) => { root.open-system-popup(kind, x); }
+        use-theme-frame: root.use-theme-frame;
+        x: root.panel-offset * 1px;
+        y: root.panel-at-top ? root.effective-panel-bottom-margin * 1px : root.height - root.panel-extent;
+        width: root.panel-content-width * 1px;
+        panel-opacity: root.panel-opacity;
+        selected-widget: root.selected-widget;
+        select-widget(id) => { root.select-widget(id); }
+        move-widget(id, x) => { root.move-widget(id, x); }
+        thickness: root.thickness;
+        floating: root.effective-panel-floating;
+        corner-radius: root.corner-radius;
+        is-edit-mode: root.is-edit-mode;
+        is-app-menu-open: root.is-app-menu-open;
+        time-str: root.time-str;
+        date-str: root.date-str;
+        taskbar-items: root.taskbar-items;
+        taskbar-width: root.taskbar-width;
+        taskbar-show-labels: root.taskbar-show-labels;
+        launcher-icon: root.launcher-icon;
+        has-launcher-icon: root.has-launcher-icon;
+        widgets: root.widgets;
+        tray-items: root.tray-items;
+        tray-action(address, action, x, y) => { root.tray-action(address, action, x, y); }
+        tray-scroll(address, delta) => { root.tray-scroll(address, delta); }
+        launcher-clicked => { root.toggle-app-menu(); }
+        launcher-double-clicked => { root.open-app-menu(); }
+        task-audio-toggle(id) => { root.task-audio-toggle(id); }
+        taskbar-item-clicked(id) => { root.taskbar-item-clicked(id); }
+        taskbar-drag-started(id) => { root.taskbar-drag-started(id); }
+        taskbar-item-moved(id, index) => { root.taskbar-item-moved(id, index); }
+        taskbar-context-menu(id, x, y) => { root.taskbar-context-menu(id, x, y); }
+        tray-clicked => { root.tray-clicked(); }
+        show-desktop-clicked => { root.show-desktop-clicked(); }
+        right-clicked(x, y) => { root.panel-context-menu(x, y); }
+    }
+
+    context-popup := PopupWindow {
+        x: PopupGeometry.coordinate(root.context-menu-x, root.context-region-width, root.width, Theme.spacing-xs, false);
+        y: PopupGeometry.coordinate(root.height - root.context-region-bottom, root.context-region-height, root.height, Theme.spacing-xs, !root.context-prefer-below);
+        width: root.context-region-width;
+        height: root.context-region-height;
+        close-policy: close-on-click-outside;
+        ContextMenu {
+            x: 0px; y: 0px;
+            width: parent.width; height: parent.height;
+            menu-width: parent.width;
+            enabled: root.is-context-menu-open;
+            items: root.context-menu-items;
+            content-height: root.context-content-height;
+            selected-index: root.context-selected-index;
+            can-go-back: root.context-can-go-back;
+            prefer-below: root.context-prefer-below;
+            hovered(index) => { root.context-selected-index = index; }
+            go-back => { root.context-go-back(); }
+            enter-submenu => { root.context-enter-submenu(); }
+            select-edge(end) => { root.context-select-edge(end); }
+            navigate(delta) => { root.navigate-context-menu(delta); }
+            activate-selected => { root.activate-context-selection(); }
+            close-menu => { root.close-context-menu(); }
+            menu-x: root.context-menu-x;
+            menu-bottom: root.panel-at-top ? root.height - root.context-menu-top : root.context-menu-bottom;
+            window-width: root.width;
+            window-height: root.height;
+            item-selected(action) => {
+                if root.context-is-tray { root.tray-menu-selected(action); } else { root.context-menu-selected(action, root.context-menu-target-id, root.context-menu-target-exec); }
+            }
+        }
+    }
+    if root.switcher-visible || root.switcher-progress > 0: Rectangle {
+        opacity: root.switcher-progress;
+        width: 100%; height: 100%; background: #00000030;
+        TouchArea { clicked => { root.switcher-choose(-1); } }
+        WindowSwitcher {
+            x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2 + (1 - root.switcher-progress) * Theme.popup-distance;
+            items: root.switcher-items; selected: root.switcher-selected; position: root.switcher-position; total: root.switcher-total;
+            card-width: Math.min(root.switcher-card-width, root.width - Theme.spacing-xl * 4);
+            choose(id) => { root.switcher-choose(id); }
+            animate opacity { duration: Theme.popup-duration * 1ms; easing: ease-out; }
+        }
+    }
+    if root.session-dialog-visible: SessionDialog {
+        title: root.session-dialog-title;
+        message: root.session-dialog-message;
+        confirm-label: root.session-dialog-confirm-label;
+        is-danger: root.session-dialog-is-danger;
+        icon: root.session-dialog-icon;
+        has-icon: root.session-dialog-has-icon;
+        confirmed => { root.session-dialog-confirmed(root.session-dialog-action); }
+        cancelled => { root.session-dialog-cancelled(); }
+    }
+    if root.security-screen-visible: SecurityScreen {
+        items: root.security-actions;
+        action-chosen(action) => { root.security-action(action); }
+        dismissed => { root.security-dismissed(); }
+    }
+
+}

@@ -1,0 +1,268 @@
+import { ThemeFrame } from "frame.slint";
+import { Theme } from "theme.slint";
+import { LauncherWidget } from "widgets/launcher.slint";
+import { TaskbarWidget, TaskbarItemData } from "widgets/taskbar.slint";
+import { ClockWidget } from "widgets/clock.slint";
+import { SystemTrayWidget, TrayItemData } from "widgets/tray.slint";
+
+export struct PanelWidgetData {
+    kind: string,
+    id: string,
+    x: float,
+    width: float,
+    edge-hit-target: bool,
+    hit-right-extension: float,
+}
+
+export component ShowDesktopButton inherits Rectangle {
+    callback clicked();
+    border-radius: Theme.radius-sm;
+    background: touch.has-hover || keys.has-focus ? Theme.surface-hover : Colors.transparent;
+    animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+    forward-focus: keys;
+    accessible-role: button;
+    accessible-label: @tr("Show desktop");
+    keys := FocusScope {
+        width: 100%; height: 100%;
+        key-pressed(event) => {
+            if event.text == Key.Return || event.text == " " { root.clicked(); return accept; }
+            reject
+        }
+    }
+    touch := TouchArea { width: 100%; height: 100%; mouse-cursor: pointer; clicked => { keys.focus(); root.clicked(); } }
+    Rectangle {
+        width: Math.max(2px, round(Theme.spacing-xs * 0.75 / 1px) * 1px);
+        height: round(parent.height * 0.58 / 1px) * 1px;
+        x: round((parent.width - self.width) / 2px) * 1px;
+        y: round((parent.height - self.height) / 2px) * 1px;
+        border-radius: Math.min(self.width / 2, self.height / 2);
+        background: touch.has-hover || keys.has-focus ? Theme.accent : Theme.border-highlight;
+        opacity: touch.has-hover || keys.has-focus ? 1 : 0.72;
+        animate background, opacity { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+    }
+}
+
+component PanelWidget inherits Rectangle {
+    in property <PanelWidgetData> widget;
+    in property <int> thickness;
+    in property <bool> is-edit-mode;
+    in property <bool> edge-hit-target: false;
+    in property <length> hit-right-extension: 0px;
+    in property <bool> is-app-menu-open;
+    in property <image> launcher-icon;
+    in property <bool> has-launcher-icon;
+    in property <[TaskbarItemData]> taskbar-items;
+    in property <int> taskbar-width;
+    in property <bool> taskbar-show-labels;
+    in property <int> taskbar-cancel-generation;
+    in property <string> time-str;
+    in property <string> date-str;
+
+    in property <[TrayItemData]> tray-items;
+    callback tray-action(string, int, length, length);
+    callback tray-scroll(string, int);
+    callback launcher-clicked();
+    callback launcher-double-clicked();
+    callback taskbar-item-clicked(int);
+    callback taskbar-drag-started(int);
+    callback taskbar-item-moved(int, int);
+    callback taskbar-drag-state-changed(bool);
+    callback task-audio-toggle(int);
+    callback task-hover(int, bool, length);
+    callback taskbar-context-menu(int, length, length);
+    callback tray-clicked();
+    in property <[string]> system-modules;
+    callback open-system-popup(string, length);
+    callback show-desktop-clicked();
+
+    x: 0px;
+    width: root.widget.width * 1px + root.hit-right-extension;
+    height: root.edge-hit-target ? root.thickness * 1px : Math.max(1px, root.thickness * 1px - Theme.panel-vertical-padding * 2);
+    background: Colors.transparent;
+
+    if root.widget.kind == "launcher": LauncherWidget {
+        width: root.width;
+        height: root.height;
+        icon: root.launcher-icon;
+        has-icon: root.has-launcher-icon;
+        is-open: root.is-app-menu-open;
+        is-edit-mode: root.is-edit-mode;
+        clicked => { root.launcher-clicked(); }
+        double-clicked => { root.launcher-double-clicked(); }
+    }
+    if root.widget.kind == "taskbar": TaskbarWidget {
+        items: root.taskbar-items;
+        content-width: root.taskbar-width;
+        width: root.width;
+        height: root.height;
+        show-labels: root.taskbar-show-labels;
+        is-edit-mode: root.is-edit-mode;
+        cancel-generation: root.taskbar-cancel-generation;
+        drag-state-changed(active) => { root.taskbar-drag-state-changed(active); }
+        drag-started(id) => { root.taskbar-drag-started(id); }
+        item-moved(id, index) => { root.taskbar-item-moved(id, index); }
+        item-hover(id, entered, x) => { root.task-hover(id, entered, x); }
+        audio-toggle(id) => { root.task-audio-toggle(id); }
+        item-clicked(id) => { root.taskbar-item-clicked(id); }
+        item-context-menu(id, x, y) => { root.taskbar-context-menu(id, x, y); }
+    }
+    if root.widget.kind == "clock": ClockWidget {
+        width: root.width;
+        height: root.height;
+        clicked(x) => { root.open-system-popup("calendar", x); }
+        time-str: root.time-str;
+        date-str: root.date-str;
+        is-edit-mode: root.is-edit-mode;
+    }
+    if root.widget.kind == "tray": SystemTrayWidget {
+        width: root.width;
+        height: root.height;
+        items: root.tray-items;
+        modules: root.system-modules;
+        open-system-popup(kind, x) => { root.open-system-popup(kind, x); }
+        item-action(address, action, x, y) => { root.tray-action(address, action, x, y); }
+        item-scroll(address, delta) => { root.tray-scroll(address, delta); }
+        is-edit-mode: root.is-edit-mode;
+        quick-settings-clicked => { root.tray-clicked(); }
+    }
+    if root.widget.kind == "show-desktop": ShowDesktopButton {
+        width: root.width;
+        height: root.height;
+        clicked => { root.show-desktop-clicked(); }
+    }
+}
+
+export component PanelView inherits Rectangle {
+    in property <bool> square-corners;
+    in property <bool> use-theme-frame: true;
+    private property <bool> has-frame: root.use-theme-frame && Theme.panel-frame.available;
+    in-out property <int> thickness: 46;
+    in-out property <bool> floating: true;
+    in-out property <int> corner-radius: 8;
+    in-out property <bool> is-edit-mode: false;
+    in-out property <bool> is-app-menu-open: false;
+    in-out property <string> time-str: "12:00";
+    in-out property <string> date-str: "Mon, 15 Sep";
+    in-out property <[TaskbarItemData]> taskbar-items;
+    in-out property <int> taskbar-width: 0;
+    in-out property <bool> taskbar-show-labels: false;
+    in-out property <image> launcher-icon;
+    in-out property <bool> has-launcher-icon: false;
+    in-out property <[PanelWidgetData]> widgets;
+
+    in property <[TrayItemData]> tray-items;
+    callback tray-action(string, int, length, length);
+    callback tray-scroll(string, int);
+    callback launcher-clicked();
+    callback launcher-double-clicked();
+    callback taskbar-item-clicked(int);
+    callback taskbar-drag-started(int);
+    callback taskbar-item-moved(int, int);
+    out property <bool> taskbar-drag-active: false;
+    private property <int> taskbar-cancel-generation: 0;
+    public function cancel-taskbar-drag() { root.taskbar-drag-active = false; root.taskbar-cancel-generation += 1; }
+    callback task-audio-toggle(int);
+    callback task-hover(int, bool, length);
+    callback taskbar-context-menu(int, length, length);
+    callback tray-clicked();
+    in property <[string]> system-modules;
+    callback open-system-popup(string, length);
+    callback show-desktop-clicked();
+    callback right-clicked(length, length);
+    in property <float> panel-opacity: 1;
+    in property <string> selected-widget;
+    callback select-widget(string);
+    callback move-widget(string, float);
+
+    height: root.thickness * 1px;
+    background: transparent;
+    border-radius: root.floating && !root.square-corners ? root.corner-radius * 1px : 0px;
+    border-width: root.is-edit-mode ? 1px : 0px;
+    border-color: root.is-edit-mode ? Theme.edit-outline : Theme.border;
+    animate border-radius, background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+
+    if !root.has-frame: Rectangle {
+        width: root.width; height: root.height;
+        background: Theme.is-aero ? @linear-gradient(180deg, Theme.glass-start 0%, Theme.glass-end 100%) : Theme.background;
+        border-radius: root.floating && !root.square-corners ? root.corner-radius * 1px : 0px;
+        border-width: 1px; border-color: Theme.border;
+        opacity: root.panel-opacity;
+    }
+    if root.has-frame: ThemeFrame { width: parent.width; height: parent.height; skin: Theme.panel-frame; square-corners: root.square-corners; material-opacity: Theme.material-opacity * root.panel-opacity; }
+
+    bg-touch := TouchArea {
+        pointer-event(event) => {
+            if (event.button == PointerEventButton.right && event.kind == PointerEventKind.up) {
+                root.right-clicked(bg-touch.absolute-position.x + bg-touch.mouse-x, bg-touch.absolute-position.y + bg-touch.mouse-y);
+            }
+        }
+    }
+
+    for widget in root.widgets: draggable := Rectangle {
+        private property <length> drag-offset;
+        private property <bool> edge-hit-target: !root.is-edit-mode && widget.edge-hit-target;
+        private property <length> hit-extension: self.edge-hit-target ? widget.hit-right-extension * 1px : 0px;
+        x: widget.x * 1px + self.drag-offset;
+        y: self.edge-hit-target ? 0px : (round((root.height - self.height) / 2px) * 1px);
+        width: widget.width * 1px + self.hit-extension;
+        height: self.edge-hit-target ? root.thickness * 1px : Math.max(1px, root.thickness * 1px - Theme.panel-vertical-padding * 2);
+        PanelWidget {
+            x: 0px;
+            widget: widget;
+            edge-hit-target: draggable.edge-hit-target;
+            hit-right-extension: draggable.hit-extension;
+            tray-items: root.tray-items;
+            system-modules: root.system-modules;
+            open-system-popup(kind, x) => { root.open-system-popup(kind, x); }
+            tray-action(address, action, x, y) => { root.tray-action(address, action, x, y); }
+            tray-scroll(address, delta) => { root.tray-scroll(address, delta); }
+            thickness: root.thickness;
+            is-edit-mode: root.is-edit-mode;
+            taskbar-cancel-generation: root.taskbar-cancel-generation;
+            is-app-menu-open: root.is-app-menu-open;
+            launcher-icon: root.launcher-icon;
+            has-launcher-icon: root.has-launcher-icon;
+            taskbar-items: root.taskbar-items;
+            taskbar-width: root.taskbar-width;
+            taskbar-show-labels: root.taskbar-show-labels;
+            time-str: root.time-str;
+            date-str: root.date-str;
+            launcher-clicked => { root.launcher-clicked(); }
+            launcher-double-clicked => { root.launcher-double-clicked(); }
+            task-hover(id, entered, x) => { root.task-hover(id, entered, x); }
+            task-audio-toggle(id) => { root.task-audio-toggle(id); }
+            taskbar-item-clicked(id) => { root.taskbar-item-clicked(id); }
+            taskbar-drag-started(id) => { root.taskbar-drag-started(id); }
+            taskbar-item-moved(id, index) => { root.taskbar-item-moved(id, index); }
+            taskbar-drag-state-changed(active) => { root.taskbar-drag-active = active; }
+            taskbar-context-menu(id, x, y) => { root.taskbar-context-menu(id, x, y); }
+            tray-clicked => { root.tray-clicked(); }
+            show-desktop-clicked => { root.show-desktop-clicked(); }
+        }
+        if root.is-edit-mode: Rectangle {
+            border-radius: Theme.radius-sm;
+            border-width: 1px;
+            border-color: root.selected-widget == widget.id || edit.has-hover ? Theme.accent : Theme.border-highlight;
+            background: edit.pressed ? Theme.surface-active : transparent;
+            edit := TouchArea {
+                private property <length> press-x;
+                mouse-cursor: self.pressed ? grabbing : grab;
+                pointer-event(event) => {
+                    if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                        self.press-x = self.absolute-position.x + self.mouse-x;
+                        root.select-widget(widget.id);
+                    }
+                    if event.kind == PointerEventKind.up && event.button == PointerEventButton.left {
+
+                        let drop-x = widget.x + widget.width / 2 + draggable.drag-offset / 1px;
+                        let moved = abs(draggable.drag-offset) > Theme.spacing-xs;
+                        draggable.drag-offset = 0px;
+                        if moved { root.move-widget(widget.id, drop-x); }
+                    }
+                    if event.kind == PointerEventKind.cancel { draggable.drag-offset = 0px; }
+                }
+                moved => { if self.pressed { draggable.drag-offset = self.absolute-position.x + self.mouse-x - self.press-x; } }
+            }
+        }
+    }
+}

@@ -1,0 +1,37 @@
+[package]
+name = "rix-settings"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "rix-settings"
+path = "src/main.rs"
+
+[dependencies]
+image.workspace = true
+gio.workspace = true
+rix-services.workspace = true
+rix-assets.workspace = true
+rix-core = { workspace = true }
+rix-config = { workspace = true }
+rix-ipc = { workspace = true }
+slint = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+libc.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = "0.4"
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
+tempfile = "3"
+
+[build-dependencies]
+slint-build = { workspace = true }
+
+[dev-dependencies]
+i-slint-backend-testing = "=1.17.1"
+slint = { version = "=1.17.1", default-features = false, features = ["renderer-software"] }

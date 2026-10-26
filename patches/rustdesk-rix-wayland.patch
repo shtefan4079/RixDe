@@ -1,0 +1,52 @@
+diff --git a/src/server/rdp_input.rs b/src/server/rdp_input.rs
+--- a/src/server/rdp_input.rs
++++ b/src/server/rdp_input.rs
+@@ -302,16 +302,18 @@
+         }
+     }
+ 
+-    fn desktop_is_niri(desktop: &str) -> bool {
+-        desktop
+-            .split(':')
+-            .any(|name| name.eq_ignore_ascii_case("niri"))
++    fn desktop_needs_pointer_scaling(desktop: &str) -> bool {
++        desktop.split(':').any(|name| {
++            name.eq_ignore_ascii_case(DISPLAY_DESKTOP_KDE)
++                || name.eq_ignore_ascii_case("niri")
++                || name.eq_ignore_ascii_case("RIX")
++        })
+     }
+ 
+     lazy_static::lazy_static! {
+         static ref SHOULD_SCALE_POINTER_COORDINATES: bool =
+             std::env::var(XDG_CURRENT_DESKTOP)
+-                .map(|desktop| desktop == DISPLAY_DESKTOP_KDE || desktop_is_niri(&desktop))
++                .map(|desktop| desktop_needs_pointer_scaling(&desktop))
+                 .unwrap_or(false);
+     }
+ 
+@@ -363,14 +365,18 @@
+ 
+     #[cfg(test)]
+     mod tests {
+-        use super::desktop_is_niri;
++        use super::desktop_needs_pointer_scaling;
+ 
+         #[test]
+-        fn detects_niri_in_desktop_list() {
+-            assert!(desktop_is_niri("niri"));
+-            assert!(desktop_is_niri("NIRI"));
+-            assert!(desktop_is_niri("GNOME:niri"));
+-            assert!(!desktop_is_niri("GNOME"));
++        fn detects_desktops_requiring_pointer_scaling() {
++            for desktop in [
++                "KDE", "kde", "GNOME:KDE", "niri", "NIRI", "GNOME:niri", "RIX", "rix", "GNOME:RIX",
++            ] {
++                assert!(desktop_needs_pointer_scaling(desktop), "{desktop}");
++            }
++            for desktop in ["GNOME", "", "X-RIX", "niri-session"] {
++                assert!(!desktop_needs_pointer_scaling(desktop), "{desktop}");
++            }
+         }
+     }
+ 

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+cd "$source_dir"
+export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
+
+cargo build --release --workspace --locked "$@"
+CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$source_dir/target}" \
+  cargo build --release --locked --manifest-path crates/rix-rar/Cargo.toml "$@"

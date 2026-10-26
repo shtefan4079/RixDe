@@ -1,0 +1,14 @@
+export global PopupGeometry {
+    public pure function extent(requested: length, available: length, margin: length) -> length {
+        return Math.max(0px, Math.min(requested, available - Math.min(margin, available / 2) * 2));
+    }
+    public pure function coordinate(anchor: length, size: length, available: length, margin: length, prefer-before: bool) -> length {
+        let edge = Math.max(0px, Math.min(margin, (available - size) / 2));
+        let point = Math.max(edge, Math.min(anchor, available - edge));
+        let after-fits = point + size <= available - edge;
+        let before-fits = point - size >= edge;
+        let before = prefer-before ? before-fits || !after-fits : !after-fits && before-fits;
+        let desired = before ? point - size : point;
+        return Math.max(edge, Math.min(desired, available - size - edge));
+    }
+}

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "id": "fairywren-dark",
+  "name": "FairyWren Dark",
+  "description": "Glass panel, application menu and ChromeOS decorations with the saved desktop palette.",
+  "theme": "theme.json",
+  "layout": "layout.kdl",
+  "resources": "resources.tar.xz",
+  "resources_sha256": "6acaba8dfd2dbf563f6ac195545848263f8e70837d774ed4315d5b7b75ec9efe",
+  "required_assets": [
+    "icons/Rix-FairyWren-Dark/index.theme",
+    "icons/Rix-Papirus/index.theme",
+    "icons/Rix-Breeze/index.theme",
+    "icons/Rix-Bibata-Modern-Ice/cursors/left_ptr",
+    "plasma/desktoptheme/Rix-FairyWren-Dark/widgets/panel-background.svgz",
+    "plasma/desktoptheme/Rix-FairyWren-Dark/widgets/tasks.svgz",
+    "plasma/desktoptheme/Rix-FairyWren-Dark/dialogs/background.svgz",
+    "aurorae/themes/Rix-ChromeOS-dark/decoration.svg",
+    "fonts/noto/NotoSans-Regular.ttf"
+  ]
+}

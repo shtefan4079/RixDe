@@ -1,0 +1,121 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { MenuStyle, MenuSurface, MenuRow } from "../../../ui/common/context_menu.slint";
+import { PopupGeometry } from "../../../ui/common/popup_geometry.slint";
+import { ScrollArea } from "../../../ui/common/scroll_area.slint";
+
+export struct MenuItem { action: string, label: string, shortcut: string, enabled: bool, separator: bool, destructive: bool, checked: bool }
+
+export component ActionsMenu inherits MenuSurface {
+    in property <[MenuItem]> items;
+    in property <length> anchor-x;
+    in property <length> anchor-y;
+    in property <length> window-width;
+    in property <length> window-height;
+    in property <string> accessible-name;
+    in property <bool> prefer-before;
+    in property <bool> open;
+    in property <bool> native-surface;
+    in property <int> initial-index: -1;
+    in property <length> initial-row-top: -1px;
+    in property <length> initial-row-height;
+    callback next-index(int, int) -> int;
+    pure callback rows-height([MenuItem], length, length) -> length;
+    pure callback items-width([MenuItem], length, length) -> length;
+    callback activated(string);
+    callback dismissed();
+    private property <int> selected-index: -1;
+    private property <length> menu-padding: Theme.context-menu-padding;
+
+    out property <length> preferred-menu-height: Math.min(Theme.context-menu-max-height, root.rows-height(root.items, Theme.menu-row-height, MenuStyle.separator-height) + root.menu-padding * 2);
+    out property <length> preferred-menu-width: root.items-width(root.items, Theme.font-size-md, MenuStyle.minimum-width);
+    width: root.native-surface ? Math.max(1px, root.window-width) : PopupGeometry.extent(root.preferred-menu-width, root.window-width, Theme.spacing-xs);
+    height: root.native-surface ? Math.min(root.preferred-menu-height, Math.max(1px, root.window-height)) : PopupGeometry.extent(root.preferred-menu-height, root.window-height, Theme.spacing-xs);
+    x: root.native-surface ? 0px : PopupGeometry.coordinate(root.anchor-x, self.width, root.window-width, Theme.spacing-xs, root.prefer-before);
+    y: root.native-surface ? 0px : PopupGeometry.coordinate(root.anchor-y, self.height, root.window-height, Theme.spacing-xs, false);
+    accessible-role: groupbox; accessible-label: root.accessible-name;
+
+    opaque: !root.native-surface;
+    TouchArea { enabled: root.open; }
+
+    changed open => { if root.open { root.selected-index = -1; keys.focus(); } }
+    public function focus-menu() {
+        scroll.viewport-y = 0px;
+        selected-index = root.initial-index;
+        if root.initial-index >= 0 && root.initial-row-top >= 0px {
+            scroll.reveal(root.initial-row-top, root.initial-row-top + root.initial-row-height);
+        }
+        keys.focus();
+    }
+    function step(direction: int) { root.selected-index = root.next-index(root.selected-index, direction); }
+    keys := FocusScope { enabled: root.open;
+        key-pressed(e) => {
+            if e.text == Key.Escape || e.text == Key.Tab { root.dismissed(); return accept; }
+            if e.text == Key.Home { root.selected-index = -1; root.step(1); return accept; }
+            if e.text == Key.End { root.selected-index = -1; root.step(-1); return accept; }
+            if e.text == Key.DownArrow { root.step(1); return accept; }
+            if e.text == Key.UpArrow { root.step(-1); return accept; }
+            if e.text == Key.Return || e.text == " " { if root.selected-index >= 0 && root.items[root.selected-index].enabled && !root.items[root.selected-index].separator { root.activated(root.items[root.selected-index].action); } return accept; }
+            accept
+        }
+    }
+    scroll := ScrollArea { x: root.menu-padding; y: root.menu-padding; width: root.width - root.menu-padding * 2; height: root.height - root.menu-padding * 2;
+        gutter: rows.preferred-height > self.height ? Theme.scrollbar-gutter : 0px;
+
+        content-height: root.rows-height(root.items, Theme.menu-row-height, MenuStyle.separator-height);
+        rows := VerticalLayout { width: scroll.content-width; padding: 0px; spacing: 0px;
+            for entry[index] in root.items: MenuRow {
+                label: entry.label;
+                shortcut: entry.shortcut;
+                disabled: !entry.enabled;
+                destructive: entry.destructive;
+                separator: entry.separator;
+                checked: entry.checked;
+                selected: root.selected-index == index;
+                hover-on-enter: root.initial-index < 0;
+                interactive: root.open;
+                changed selected => { if self.selected { scroll.reveal(self.y, self.y + self.height); } }
+                hovered => { root.selected-index = index; }
+                activated => { root.activated(entry.action); }
+            }
+        }
+    }
+}
+
+export component NativeActionsMenu inherits Window {
+    background: transparent;
+    no-frame: true;
+    default-font-family: Theme.font-family;
+    default-font-size: Theme.font-size-md;
+    preferred-width: menu.preferred-menu-width;
+    preferred-height: menu.preferred-menu-height;
+    in property <[MenuItem]> items;
+    in property <string> menu-title;
+    in property <int> initial-index: -1;
+    in property <length> initial-row-top: -1px;
+    in property <length> initial-row-height;
+    in property <bool> material-supported: true;
+    out property <length> menu-radius: Theme.context-menu-radius;
+    out property <length> menu-width: menu.width;
+    out property <length> menu-height: menu.height;
+    callback activated(string);
+    callback dismissed();
+    callback next-index(int, int) -> int;
+    pure callback rows-height([MenuItem], length, length) -> length;
+    pure callback items-width([MenuItem], length, length) -> length;
+    public function focus-menu() { menu.focus-menu(); }
+    menu := ActionsMenu {
+        native-surface: true; open: true;
+        window-width: root.width; window-height: root.height;
+        material-supported: root.material-supported;
+        accessible-name: root.menu-title;
+        items: root.items;
+        initial-index: root.initial-index;
+        initial-row-top: root.initial-row-top;
+        initial-row-height: root.initial-row-height;
+        next-index(index, direction) => { root.next-index(index, direction) }
+        rows-height(items, row-height, separator-height) => { root.rows-height(items, row-height, separator-height) }
+        items-width(items, font-size, min-width) => { root.items-width(items, font-size, min-width) }
+        activated(action) => { root.activated(action); }
+        dismissed => { root.dismissed(); }
+    }
+}

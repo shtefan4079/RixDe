@@ -1,0 +1,42 @@
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+export struct LauncherActionData {
+    action: string, label: string, icon: image, has-icon: bool, icon-only: bool,
+}
+component ActionButton inherits Rectangle {
+    in property <LauncherActionData> item;
+    callback triggered(string, string);
+    border-radius: Theme.radius-sm;
+    background: touch.has-hover ? Theme.surface-hover : transparent;
+    animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+    min-width: Theme.icon-size;
+    horizontal-stretch: 0;
+    HorizontalLayout {
+        spacing: Theme.spacing-xs;
+        Rectangle {
+            width: Theme.icon-size;
+            Image {
+                source: root.item.has-icon ? root.item.icon : Icons.power;
+                width: parent.width; height: Theme.icon-size;
+                y: (parent.height - self.height) / 2;
+                image-fit: contain;
+            }
+        }
+        if !root.item.icon-only: Text {
+            text: root.item.label; color: Theme.text-primary; font-size: Theme.font-size-sm;
+            vertical-alignment: center; overflow: elide;
+        }
+    }
+    touch := TouchArea { clicked => { root.triggered(root.item.action, root.item.label); } }
+}
+export component LauncherFooter inherits Rectangle {
+    in property <[LauncherActionData]> start-actions;
+    in property <[LauncherActionData]> end-actions;
+    callback triggered(string, string);
+    HorizontalLayout {
+        spacing: Theme.default-spacing;
+        for item in root.start-actions: ActionButton { item: item; triggered(action, label) => { root.triggered(action, label); } }
+        Rectangle { min-width: 0px; horizontal-stretch: 1; }
+        for item in root.end-actions: ActionButton { item: item; triggered(action, label) => { root.triggered(action, label); } }
+    }
+}

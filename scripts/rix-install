@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import stat
+import subprocess
+import sys
+import tempfile
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def atomic_write(target, content, mode):
+    curr = target.parent
+    to_create = []
+    while curr != curr.parent and not curr.exists():
+        to_create.append(curr)
+        curr = curr.parent
+    target.parent.mkdir(parents=True, exist_ok=True)
+    for d in reversed(to_create):
+        try:
+            d.chmod(0o755)
+        except OSError:
+            pass
+    try:
+        target.parent.chmod(0o755)
+    except OSError:
+        pass
+    fd, name = tempfile.mkstemp(prefix=".rix-install-", dir=target.parent)
+    try:
+        with os.fdopen(fd, "wb") as out:
+            out.write(content)
+            out.flush()
+            os.fsync(out.fileno())
+        os.chmod(name, mode)
+        os.replace(name, target)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def main():
+    os.umask(0o022)
+    default_prefix = Path("/usr") if Path("/usr/share/rix/install-manifest.json").exists() else Path("/usr/local")
+    parser = argparse.ArgumentParser(description="Install RixDE desktop environment, session, lockscreen and display manager.")
+    parser.add_argument("--prefix", type=Path, default=default_prefix,
+                        help=f"Installation prefix (default: {default_prefix})")
+    parser.add_argument("--destdir", type=Path, default=Path("/"))
+    parser.add_argument("--session-dir", type=Path, default=Path("/usr/share/wayland-sessions"))
+    parser.add_argument("--no-session", action="store_true", help="Install tools without a login entry")
+    parser.add_argument("--uninstall", action="store_true")
+    parser.add_argument("--replace-modified", type=Path, action="append", default=[], metavar="PATH",
+                        help="Back up and replace this conflicting installed file; repeat for multiple files")
+    parser.add_argument("--force", action="store_true",
+                        help="Automatically back up and replace all conflicting or modified files")
+    args = parser.parse_args()
+    prefix, root = args.prefix, args.destdir.resolve()
+    if args.uninstall and args.replace_modified:
+        parser.error("--replace-modified cannot be used with --uninstall")
+    for path in (prefix, args.session_dir, *args.replace_modified):
+        if not path.is_absolute() or ".." in path.parts or any(c in str(path) for c in "\n\r\x00"):
+            parser.error("Installation paths must be absolute, without '..' or control characters")
+    if not (args.no_session or args.uninstall) and not re.fullmatch(r"[A-Za-z0-9_./+-]+", str(prefix)):
+        parser.error("A login session requires a prefix without spaces or shell metacharacters; use --no-session for other paths")
+
+    def staged(path):
+        target = root / path.relative_to("/")
+        if not target.resolve().is_relative_to(root):
+            raise ValueError(f"Path escapes staging directory: {target}")
+        return target
+
+    manifest_path = staged(prefix / "share/rix/install-manifest.json")
+    previous = json.loads(manifest_path.read_text()) if manifest_path.exists() else {"files": {}}
+    if args.uninstall:
+        kept = {}
+        for name, checksum in previous["files"].items():
+            path = Path(name)
+            allowed = path.is_relative_to(prefix) or path == args.session_dir / "rix.desktop" or path.is_relative_to("/etc/pam.d") or path.is_relative_to("/etc/rix-dm")
+            if not allowed or ".." in path.parts:
+                raise ValueError(f"Invalid manifest entry: {path}")
+            target = staged(path)
+            if not target.exists():
+                continue
+            if target.is_symlink() or digest(target) != checksum:
+                print(f"Preserving modified file: {target}")
+                kept[name] = checksum
+                continue
+            target.unlink()
+            print(f"Removed {target}")
+        if kept:
+            atomic_write(manifest_path, json.dumps({"files": kept}, indent=2).encode(), 0o644)
+        else:
+            manifest_path.unlink(missing_ok=True)
+        return
+
+    source = Path(__file__).resolve().parent.parent
+    binaries = ["rix-comp", "rix-shell", "rix-settings", "rix-ctl", "rix-lock", "rix-greeter", "rix-dm", "rix-capture", "rix-files", "rix-run", "rix-portal", "rix-app-compat", "rix-session-cleanup", "rix-rar"]
+    files = []
+    private = prefix / "libexec/rixde"
+    for name in binaries:
+        binary = source / "target/release" / name
+        if name == "rix-rar" and not binary.is_file():
+            binary = source / "crates/rix-rar/target/release/rix-rar"
+        if not binary.is_file() or not os.access(binary, os.X_OK):
+            raise ValueError("Build first with ./scripts/rix-build-release")
+        files.append((binary, private / name, 0o755))
+    for src, name in [("rix-session.sh", "rix-session"),
+                      ("rix-theme-resources", "rix-theme-resources")]:
+        script_file = source / "scripts" / src
+        if script_file.is_file():
+            files.append((script_file, private / name, 0o755))
+    for asset in (source / "assets").rglob("*"):
+        if (asset.is_file() and asset.name not in {"rix.desktop", "org.clavis.Clavis.desktop"}
+                and asset.relative_to(source / "assets").parts[0] != "clavis"):
+            files.append((asset, prefix / "share" / asset.relative_to(source / "assets"), 0o644))
+    files.append((source / "crates/rix-rar/LICENSE", prefix / "share/rix/licenses/rix-rar-GPL-3.0.txt", 0o644))
+    for name in ("Cargo.toml", "Cargo.lock", "src/main.rs"):
+        files.append((source / "crates/rix-rar" / name, prefix / "share/rix/rar-source" / name, 0o644))
+
+    payload = [(dest, src.read_bytes().replace(b"Exec=rix-portal\n", ("Exec=" + str(prefix / "bin/rix-portal") + "\n").encode())
+                if src.name == "org.freedesktop.impl.portal.desktop.rix.files.service" else src.read_bytes(), mode)
+               for src, dest, mode in files]
+
+    for name in binaries + ["rix-session"]:
+        if name in binaries and name not in {"rix-dm", "rix-run", "rix-portal", "rix-app-compat", "rix-session-cleanup", "rix-rar"}:
+            body = f"#!/bin/sh\nexec {shlex.quote(str(private / 'rix-theme-resources'))} --data-dir {shlex.quote(str(prefix / 'share'))} --exec {shlex.quote(str(private / name))} \"$@\"\n"
+        else:
+            body = f"#!/bin/sh\nexec {shlex.quote(str(private / name))} \"$@\"\n"
+        payload.append((prefix / "bin" / name, body.encode(), 0o755))
+
+    if not args.no_session:
+        launcher = str(prefix / "bin/rix-session")
+        entry = (source / "assets/rix.desktop").read_text()
+        entry = entry.replace("Exec=rix-session ", f"Exec={launcher} ")
+        entry = entry.replace("TryExec=rix-session", "TryExec=" + launcher)
+        payload.append((args.session_dir / "rix.desktop", entry.encode(), 0o644))
+
+    assets_dir = source / "assets"
+    if staged(Path("/etc/pam.d/system-local-login")).is_file():
+        login_pam = "auth requisite pam_nologin.so\nauth include system-local-login\naccount include system-local-login\nsession include system-local-login\nsession required pam_systemd.so\n"
+        lock_pam = "auth include system-auth\naccount include system-auth\n"
+    elif staged(Path("/etc/pam.d/common-auth")).is_file():
+        login_pam = "auth requisite pam_nologin.so\n@include common-auth\n@include common-account\n@include common-session\nsession required pam_systemd.so\n"
+        lock_pam = "@include common-auth\n@include common-account\n"
+    else:
+        login_pam = "auth requisite pam_nologin.so\nauth include system-auth\naccount include system-auth\nsession include system-auth\nsession required pam_systemd.so\n"
+        lock_pam = "auth include system-auth\naccount include system-auth\n"
+
+    dm_config_file = assets_dir / "rix-dm-config.json"
+    if dm_config_file.is_file():
+        config = json.loads(dm_config_file.read_text())
+        config["compositor"] = str(prefix / "libexec/rixde/rix-comp")
+        config["greeter"] = str(prefix / "libexec/rixde/rix-greeter")
+        config["sessions"][0]["command"] = str(prefix / "bin/rix-session")
+        payload.append((Path("/etc/rix-dm/config.json"), (json.dumps(config, indent=2) + "\n").encode(), 0o644))
+
+    payload.append((Path("/etc/pam.d/rix-dm"), ("#%PAM-1.0\n" + login_pam).encode(), 0o644))
+    payload.append((Path("/etc/pam.d/rix-lock"), ("#%PAM-1.0\n" + lock_pam).encode(), 0o644))
+
+    greeter_pam = assets_dir / "pam.d/rix-greeter"
+    if greeter_pam.is_file():
+        payload.append((Path("/etc/pam.d/rix-greeter"), greeter_pam.read_bytes(), 0o644))
+
+    service_file = assets_dir / "systemd/rix-dm.service"
+    if service_file.is_file():
+        service_text = service_file.read_text().replace("/usr/local", str(prefix)).encode()
+        payload.append((Path("/usr/lib/systemd/system/rix-dm.service"), service_text, 0o644))
+
+    payload.append((Path("/usr/lib/sysusers.d/rix-dm.conf"), b'u rix-greeter - "Rix login screen" /var/lib/rix-greeter /usr/bin/nologin\n', 0o644))
+    payload.append((Path("/usr/lib/tmpfiles.d/rix-dm.conf"), b"d /var/lib/rix-greeter 0700 rix-greeter rix-greeter -\n", 0o644))
+
+    replacements = set(args.replace_modified)
+    destinations = {dest for dest, _, _ in payload}
+    unknown = replacements - destinations
+    if unknown:
+        raise ValueError(f"--replace-modified must name an installation destination: {sorted(map(str, unknown))[0]}")
+    backups = []
+    for dest, content, _ in payload:
+        target = staged(dest)
+        if target.is_symlink():
+            raise ValueError(f"Refusing to replace symlink: {target}")
+        if not target.exists():
+            continue
+        existing = target.read_bytes()
+        if existing != content:
+            checksum = previous["files"].get(str(dest))
+            current = hashlib.sha256(existing).hexdigest()
+            if checksum is None or current != checksum:
+                if not args.force and dest not in replacements:
+                    raise ValueError(
+                        f"File is not owned by this installation, or was modified: {target}. "
+                        f"To keep a backup and replace this file, add --replace-modified {dest} (or use --force)"
+                    )
+                backups.append((dest, existing, stat.S_IMODE(target.stat().st_mode), current))
+    if backups:
+        backup_root = staged(prefix / "share/rix/install-backups")
+        backup_root.mkdir(parents=True, exist_ok=True)
+        backup_dir = Path(tempfile.mkdtemp(prefix="replacement-", dir=backup_root))
+        preserved = {}
+        for dest, content, mode, checksum in backups:
+            relative = Path("files") / dest.relative_to("/")
+            backup = backup_dir / relative
+            atomic_write(backup, content, mode)
+            preserved[str(dest)] = {"sha256": checksum, "mode": mode, "backup": str(relative)}
+        atomic_write(backup_dir / "backup-manifest.json",
+                     json.dumps({"files": preserved}, indent=2).encode(), 0o600)
+        print(f"Saved backup: {backup_dir}", flush=True)
+    installed = dict(previous["files"])
+    for dest, content, mode in payload:
+        target = staged(dest)
+        atomic_write(target, content, mode)
+        installed[str(dest)] = hashlib.sha256(content).hexdigest()
+        atomic_write(manifest_path, json.dumps({"files": installed}, indent=2).encode(), 0o644)
+
+    if root == Path("/") and os.geteuid() == 0:
+        if Path("/usr/bin/systemd-sysusers").is_file():
+            subprocess.run(["/usr/bin/systemd-sysusers", "/usr/lib/sysusers.d/rix-dm.conf"], check=False)
+        if Path("/usr/bin/systemd-tmpfiles").is_file():
+            subprocess.run(["/usr/bin/systemd-tmpfiles", "--create", "/usr/lib/tmpfiles.d/rix-dm.conf"], check=False)
+
+    print(f"Installed {len(payload)} files under {root / prefix.relative_to('/')}")
+    if not args.no_session:
+        print("RixDE session and display manager/lockscreen installed successfully.")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        print(f"rix-install: {error}", file=sys.stderr)
+        sys.exit(1)

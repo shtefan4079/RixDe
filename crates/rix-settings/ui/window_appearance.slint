@@ -1,0 +1,157 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { ToggleSwitch } from "../../../ui/common/controls.slint";
+import { Button } from "std-widgets.slint";
+import { ComboBox } from "../../../ui/common/combo_box.slint";
+import { LineEdit } from "../../../ui/common/line_edit.slint";
+import { SettingsCard, SettingsRow, SettingsDivider } from "card.slint";
+
+export struct AppearanceRuleRow { app-id: string, theme-name: string, material: bool }
+
+export global WindowAppearancePreferences {
+    in-out property <bool> use-desktop-material: true;
+    in-out property <[AppearanceRuleRow]> rules;
+    in-out property <[string]> running-apps;
+    in-out property <int> running-index;
+    in-out property <bool> refreshing;
+    in-out property <[string]> themes;
+    in-out property <int> theme-index;
+    in-out property <bool> editor-open;
+    in-out property <bool> editing-existing;
+    in-out property <string> app-id;
+    in-out property <bool> rule-material: true;
+    in-out property <string> status;
+    in-out property <length> scroll-position;
+    callback refresh-apps();
+    callback choose-running(int);
+    callback add-rule();
+    callback edit-rule(int);
+    callback remove-rule(int);
+    callback choose-theme(int);
+    callback import-theme();
+    callback store-rule();
+    callback cancel-rule();
+    callback apply();
+}
+
+export component WindowAppearanceView inherits Rectangle {
+    in property <bool> busy;
+    background: transparent;
+    preferred-height: page-content.preferred-height;
+    page-content := VerticalLayout {
+        spacing: 16px;
+
+        SettingsCard {
+            title: @tr("Window frames and decoration materials");
+            subtitle: @tr("Appearance of title bars, borders and glass shaders on application windows");
+
+            SettingsRow {
+                title: @tr("Use desktop material for windows");
+                subtitle: @tr("Render translucent frosted glass title bars on supported client windows");
+                ToggleSwitch {
+                    checked <=> WindowAppearancePreferences.use-desktop-material;
+                    enabled: !root.busy;
+                }
+            }
+        }
+
+        SettingsCard {
+            title: @tr("Per-application decoration rules");
+            subtitle: @tr("Override decoration style or force opaque frames for specific programs");
+
+            HorizontalLayout {
+                Button {
+                    text: @tr("Add application rule…");
+                    primary: true;
+                    enabled: !root.busy && !WindowAppearancePreferences.editor-open && WindowAppearancePreferences.rules.length < 64;
+                    clicked => { WindowAppearancePreferences.add-rule(); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+            }
+
+            if WindowAppearancePreferences.rules.length > 0: SettingsDivider {}
+
+            for rule[index] in WindowAppearancePreferences.rules: VerticalLayout {
+                spacing: 0px;
+                if index > 0: SettingsDivider {}
+                SettingsRow {
+                    title: rule.app-id;
+                    subtitle: rule.theme-name + " · " + (rule.material ? @tr("Frosted glass material") : @tr("Opaque frame"));
+                    HorizontalLayout {
+                        spacing: 8px; alignment: center;
+                        Button {
+                            text: @tr("Edit");
+                            enabled: !root.busy && !WindowAppearancePreferences.editor-open;
+                            clicked => { WindowAppearancePreferences.edit-rule(index); }
+                        }
+                        Button {
+                            text: @tr("Delete");
+                            enabled: !root.busy && !WindowAppearancePreferences.editor-open;
+                            clicked => { WindowAppearancePreferences.remove-rule(index); }
+                        }
+                    }
+                }
+            }
+
+            if WindowAppearancePreferences.rules.length == 0: Text {
+                text: @tr("No application rules configured. All windows follow the desktop default.");
+                color: Theme.text-secondary; font-size: 13px;
+            }
+        }
+
+        if WindowAppearancePreferences.editor-open: SettingsCard {
+            title: WindowAppearancePreferences.editing-existing ? @tr("Edit application rule") : @tr("New application rule");
+            subtitle: @tr("Specify window matching criteria and decoration overrides");
+
+            SettingsRow {
+                title: @tr("Application ID or binary name");
+                subtitle: @tr("Exact match against desktop file or window class");
+                LineEdit {
+                    text <=> WindowAppearancePreferences.app-id;
+                    placeholder-text: "org.mozilla.firefox";
+                    min-width: 200px;
+                }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Running applications");
+                subtitle: @tr("Select from open windows to populate ID");
+                HorizontalLayout {
+                    spacing: 8px;
+                    ComboBox {
+                        model: WindowAppearancePreferences.running-apps;
+                        current-index <=> WindowAppearancePreferences.running-index;
+                        min-width: 195px;
+                        selected(_) => { WindowAppearancePreferences.choose-running(self.current-index); }
+                    }
+                    Button {
+                        text: @tr("Refresh");
+                        enabled: !WindowAppearancePreferences.refreshing;
+                        clicked => { WindowAppearancePreferences.refresh-apps(); }
+                    }
+                }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Frame material");
+                subtitle: @tr("Render with glass material or solid opaque color");
+                ToggleSwitch { checked <=> WindowAppearancePreferences.rule-material; }
+            }
+
+            SettingsDivider {}
+
+            HorizontalLayout {
+                spacing: 10px; alignment: end;
+                Button { text: @tr("Cancel"); clicked => { WindowAppearancePreferences.cancel-rule(); } }
+                Button { text: @tr("Save rule"); primary: true; clicked => { WindowAppearancePreferences.store-rule(); } }
+            }
+        }
+
+        if WindowAppearancePreferences.status != "": Text {
+            text: WindowAppearancePreferences.status; color: Theme.text-secondary; wrap: word-wrap;
+        }
+    }
+}

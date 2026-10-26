@@ -1,0 +1,15 @@
+[package]
+name = "rix-lock"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+rix-auth = { path = "../rix-auth" }
+rix-login-ui = { path = "../rix-login-ui" }
+rix-shell-adapter.workspace = true
+slint.workspace = true
+libc.workspace = true
+anyhow.workspace = true
+

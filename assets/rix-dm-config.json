@@ -1,0 +1,16 @@
+{
+  "greeter_user": "rix-greeter",
+  "compositor": "/usr/local/libexec/rixde/rix-comp",
+  "greeter": "/usr/local/libexec/rixde/rix-greeter",
+  "vt": 1,
+  "min_uid": 1000,
+  "allowed_users": [],
+  "sessions": [
+    {
+      "id": "rix",
+      "name": "RixDE · Wayland",
+      "command": "/usr/local/bin/rix-session",
+      "args": ["--native", "--experimental-kms", "--log-session"]
+    }
+  ]
+}

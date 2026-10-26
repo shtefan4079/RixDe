@@ -1,0 +1,149 @@
+import { Icons } from "../icons.slint";
+import { Theme } from "../theme.slint";
+
+component DialogButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> is-primary: false;
+    in property <bool> is-danger: false;
+    callback clicked();
+
+    height: 38px;
+    border-radius: Theme.radius-md;
+    background: touch.has-hover ?
+        (root.is-danger ? Theme.danger : root.is-primary ? Theme.accent-hover : Theme.surface-hover) :
+        (root.is-danger ? Theme.danger-bg : root.is-primary ? Theme.accent : Theme.surface);
+    border-width: 1px;
+    border-color: root.is-danger ? Theme.danger : root.is-primary ? Theme.accent : Theme.border-highlight;
+
+    animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    Text {
+        text: root.text;
+        color: root.is-danger && !touch.has-hover ? Theme.danger : Theme.text-primary;
+        font-size: Theme.font-size-md;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component SessionDialog inherits Rectangle {
+    in property <string> title: "";
+    in property <string> message: "";
+    in property <string> confirm-label: "";
+    in property <bool> is-danger: false;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    callback confirmed();
+    callback cancelled();
+
+    width: 100%;
+    height: 100%;
+    background: #00000075;
+
+    TouchArea {
+        clicked => { root.cancelled(); }
+    }
+
+    focus-scope := FocusScope {
+        width: 100%;
+        height: 100%;
+        init => { self.focus(); }
+        key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.cancelled();
+                return accept;
+            }
+            if event.text == Key.Return || event.text == " " {
+                root.confirmed();
+                return accept;
+            }
+            reject
+        }
+
+        dialog-card := Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: Math.min(380px, parent.width - 32px);
+            height: layout.preferred-height;
+            border-radius: Theme.radius-lg;
+            background: Theme.menu-bg;
+            border-width: 1px;
+            border-color: Theme.border-highlight;
+            clip: true;
+
+            TouchArea { width: 100%; height: 100%; }
+
+            layout := VerticalLayout {
+                padding-left: 24px;
+                padding-right: 24px;
+                padding-top: 24px;
+                padding-bottom: 24px;
+                spacing: 16px;
+                alignment: center;
+
+                HorizontalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 52px;
+                        height: 52px;
+                        border-radius: 26px;
+                        background: root.is-danger ? Theme.danger-bg : Theme.accent-glow;
+                        border-width: 1px;
+                        border-color: root.is-danger ? Theme.danger : Theme.accent;
+
+                        Image {
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            width: 24px;
+                            height: 24px;
+                            source: root.has-icon ? root.icon : Icons.power;
+                            colorize: root.is-danger ? Theme.danger : Theme.text-primary;
+                            image-fit: contain;
+                        }
+                    }
+                }
+
+                Text {
+                    text: root.title;
+                    color: Theme.text-primary;
+                    font-size: Theme.font-size-xl;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: root.message;
+                    color: Theme.text-secondary;
+                    font-size: Theme.font-size-md;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: stretch;
+
+                    DialogButton {
+                        horizontal-stretch: 1;
+                        text: @tr("Cancel");
+                        clicked => { root.cancelled(); }
+                    }
+
+                    DialogButton {
+                        horizontal-stretch: 1;
+                        text: root.confirm-label;
+                        is-primary: !root.is-danger;
+                        is-danger: root.is-danger;
+                        clicked => { root.confirmed(); }
+                    }
+                }
+            }
+        }
+    }
+}

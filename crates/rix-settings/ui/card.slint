@@ -1,0 +1,291 @@
+import { Theme } from "../../../ui/common/theme.slint";
+
+export component SettingsCard inherits Rectangle {
+    in property <string> title: "";
+    in property <string> subtitle: "";
+    in property <string> badge: "";
+    background: Theme.surface;
+    border-radius: Theme.radius-md;
+    border-width: 1px;
+    border-color: Theme.border;
+    preferred-height: card-layout.preferred-height;
+    vertical-stretch: 0;
+
+    card-layout := VerticalLayout {
+        padding-top: 16px;
+        padding-bottom: 16px;
+        padding-left: 20px;
+        padding-right: 20px;
+        spacing: 12px;
+
+        if root.title != "": HorizontalLayout {
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 2px;
+                Text {
+                    text: root.title;
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: Theme.text-primary;
+                }
+                if root.subtitle != "": Text {
+                    text: root.subtitle;
+                    font-size: 12px;
+                    color: Theme.text-secondary;
+                    wrap: word-wrap;
+                }
+            }
+            if root.badge != "": VerticalLayout {
+                horizontal-stretch: 0;
+                alignment: center;
+                Rectangle {
+                    height: 22px;
+                    border-radius: 6px;
+                    background: Theme.control-surface;
+                    border-width: 1px;
+                    border-color: Theme.control-border;
+                    HorizontalLayout {
+                        padding-left: 8px; padding-right: 8px;
+                        alignment: center;
+                        Text {
+                            text: root.badge;
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                            font-weight: 500;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+        @children
+    }
+}
+
+export component SettingsRow inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle: "";
+    min-height: 44px;
+    preferred-height: row-layout.preferred-height;
+    vertical-stretch: 0;
+
+    row-layout := HorizontalLayout {
+        spacing: 20px;
+
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            spacing: 2px;
+            Text {
+                text: root.title;
+                color: Theme.text-primary;
+                font-size: 13.5px;
+                font-weight: 500;
+            }
+            if root.subtitle != "": Text {
+                text: root.subtitle;
+                color: Theme.text-secondary;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+        }
+
+        VerticalLayout {
+            horizontal-stretch: 0;
+            alignment: center;
+            HorizontalLayout {
+                spacing: 10px;
+                alignment: end;
+                @children
+            }
+        }
+    }
+}
+
+export component SettingsDivider inherits Rectangle {
+    height: 1px;
+    background: Theme.divider;
+    vertical-stretch: 0;
+}
+
+export component ValueBadge inherits Rectangle {
+    in property <string> text;
+    min-width: 54px;
+    height: 26px;
+    border-radius: 6px;
+    background: Theme.control-surface;
+    border-width: 1px;
+    border-color: Theme.control-border;
+    HorizontalLayout {
+        padding-left: 8px; padding-right: 8px;
+        alignment: center;
+        Text {
+            text: root.text;
+            color: Theme.text-primary;
+            font-size: 12px;
+            font-weight: 500;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component TagBadge inherits Rectangle {
+    in property <string> text;
+    in property <bool> success: false;
+    height: 20px;
+    border-radius: 5px;
+    background: root.success ? #10b981.with-alpha(0.14) : Theme.control-surface;
+    border-width: 1px;
+    border-color: root.success ? #10b981.with-alpha(0.28) : Theme.control-border;
+    HorizontalLayout {
+        padding-left: 7px; padding-right: 7px;
+        alignment: center;
+        Text {
+            text: root.text;
+            color: root.success ? #34d399 : Theme.text-secondary;
+            font-size: 11px;
+            font-weight: 500;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component RixSpinBox inherits Rectangle {
+    in-out property <int> value: 0;
+    in property <int> minimum: 0;
+    in property <int> maximum: 100;
+    in property <int> step: 1;
+    in property <string> suffix: "";
+    in property <bool> enabled: true;
+    callback changed(int);
+
+    height: 32px;
+    border-radius: Theme.radius-sm;
+    background: Theme.control-surface;
+    border-width: 1px;
+    border-color: Theme.control-border;
+    opacity: root.enabled ? 1.0 : 0.5;
+
+    HorizontalLayout {
+
+        Rectangle {
+            width: 32px;
+            background: minus-touch.pressed ? Theme.surface-active : (minus-touch.has-hover ? Theme.surface-hover : transparent);
+            border-top-left-radius: Theme.radius-sm;
+            border-bottom-left-radius: Theme.radius-sm;
+            Text {
+                text: "−";
+                font-size: 15px;
+                font-weight: 600;
+                color: root.enabled && root.value > root.minimum ? Theme.text-primary : Theme.text-muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            minus-touch := TouchArea {
+                enabled: root.enabled && root.value > root.minimum;
+                clicked => {
+                    root.value = Math.max(root.minimum, root.value - root.step);
+                    root.changed(root.value);
+                }
+            }
+        }
+
+        Rectangle { width: 1px; background: Theme.divider; }
+
+        Rectangle {
+            min-width: 58px;
+            HorizontalLayout {
+                padding-left: 8px; padding-right: 8px;
+                Text {
+                    text: root.value + root.suffix;
+                    font-size: 12.5px;
+                    font-weight: 500;
+                    color: Theme.text-primary;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        Rectangle { width: 1px; background: Theme.divider; }
+
+        Rectangle {
+            width: 32px;
+            background: plus-touch.pressed ? Theme.surface-active : (plus-touch.has-hover ? Theme.surface-hover : transparent);
+            border-top-right-radius: Theme.radius-sm;
+            border-bottom-right-radius: Theme.radius-sm;
+            Text {
+                text: "+";
+                font-size: 15px;
+                font-weight: 600;
+                color: root.enabled && root.value < root.maximum ? Theme.text-primary : Theme.text-muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            plus-touch := TouchArea {
+                enabled: root.enabled && root.value < root.maximum;
+                clicked => {
+                    root.value = Math.min(root.maximum, root.value + root.step);
+                    root.changed(root.value);
+                }
+            }
+        }
+    }
+}
+
+export component RixButton inherits Rectangle {
+    in property <string> text;
+    in property <image> icon;
+    in property <bool> primary: false;
+    in property <bool> destructive: false;
+    in property <bool> enabled: true;
+    callback clicked();
+
+    height: 32px;
+    min-width: 64px;
+    border-radius: Theme.radius-sm;
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    opacity: root.enabled ? 1.0 : 0.45;
+
+    background: !root.enabled
+        ? (root.primary ? Theme.accent.with-alpha(0.35) : Theme.control-surface)
+        : (root.primary
+            ? (touch.pressed ? Theme.accent.darker(15%) : (touch.has-hover ? Theme.accent-hover : Theme.accent))
+            : (touch.pressed ? Theme.surface-active : (touch.has-hover ? Theme.surface-hover : Theme.control-surface)));
+
+    border-width: root.primary ? 0px : 1px;
+    border-color: touch.has-hover ? Theme.accent.with-alpha(0.4) : Theme.control-border;
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        spacing: 6px;
+        alignment: center;
+
+        if root.icon.width > 0: Image {
+            source: root.icon;
+            width: 15px;
+            height: 15px;
+            colorize: root.primary ? #ffffff : (root.destructive ? Theme.danger : Theme.text-primary);
+            image-fit: contain;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: root.text;
+            color: root.primary ? #ffffff : (root.destructive ? Theme.danger : Theme.text-primary);
+            font-size: 13px;
+            font-weight: root.primary ? 600 : 500;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+}

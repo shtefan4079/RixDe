@@ -1,0 +1,269 @@
+diff --git a/include/wlr_screencast.h b/include/wlr_screencast.h
+index 4ec56dc..24f7ca1 100644
+--- a/include/wlr_screencast.h
++++ b/include/wlr_screencast.h
+@@ -25,6 +25,7 @@ bool xdpw_wlr_target_from_data(struct xdpw_screencast_context *ctx, struct xdpw_
+ 		struct xdpw_screencast_restore_data *data);
+ 
+ void xdpw_wlr_frame_capture(struct xdpw_screencast_instance *cast);
++void xdpw_wlr_frame_cancel(struct xdpw_screencast_instance *cast);
+ int xdpw_wlr_session_init(struct xdpw_screencast_instance *cast);
+ void xdpw_wlr_session_close(struct xdpw_screencast_instance *cast);
+ 
+diff --git a/src/screencast/ext_image_copy.c b/src/screencast/ext_image_copy.c
+index afdfcd9..52fbc29 100644
+--- a/src/screencast/ext_image_copy.c
++++ b/src/screencast/ext_image_copy.c
+@@ -215,7 +215,6 @@ static void ext_frame_ready(void *data,
+ 		buffer->damage.size = 0;
+ 	}
+ 	cast->current_frame.damage.size = 0;
+-	pw_stream_trigger_process(cast->stream);
+ }
+ 
+ static void ext_frame_failed(void *data,
+diff --git a/src/screencast/pipewire_screencast.c b/src/screencast/pipewire_screencast.c
+index 1f24760..48d6089 100644
+--- a/src/screencast/pipewire_screencast.c
++++ b/src/screencast/pipewire_screencast.c
+@@ -19,6 +19,9 @@
+ 
+ #define DAMAGE_REGION_COUNT 16
+ 
++static void pwr_schedule_process(struct xdpw_screencast_instance *cast, uint64_t delay_ns);
++static void pwr_handle_stream_on_process(void *data);
++
+ static struct spa_pod *build_buffer(struct spa_pod_builder *b, uint32_t blocks, uint32_t size,
+ 		uint32_t stride, uint32_t datatype) {
+ 	assert(blocks > 0);
+@@ -327,6 +330,12 @@ void xdpw_pwr_enqueue_buffer(struct xdpw_screencast_instance *cast) {
+ done:
+ 	cast->current_frame.xdpw_buffer = NULL;
+ 	cast->current_frame.pw_buffer = NULL;
++	/* Queueing alone does not advance a driver stream. Defer the graph cycle:
++	 * trigger_process can invoke process synchronously, before the Wayland
++	 * ready handler has destroyed its completed frame. */
++	if (pw_stream_get_state(cast->stream, NULL) == PW_STREAM_STATE_STREAMING) {
++		pwr_schedule_process(cast, 1);
++	}
+ }
+ 
+ void pwr_update_stream_param(struct xdpw_screencast_instance *cast) {
+@@ -362,20 +371,26 @@ static void pwr_handle_stream_state_changed(void *data,
+ 		pw_stream_state_as_string(state));
+ 	logprint(INFO, "pipewire: node id is %d", (int)cast->node_id);
+ 
++	if (state != PW_STREAM_STATE_STREAMING) {
++		cast->pwr_stream_state = false;
++		pwr_disarm_process_retry(cast);
++		xdpw_wlr_frame_cancel(cast);
++	}
++
+ 	switch (state) {
+ 	case PW_STREAM_STATE_STREAMING:
+ 		cast->pwr_stream_state = true;
+-		xdpw_pwr_dequeue_buffer(cast);
+-		xdpw_wlr_frame_capture(cast);
++		pwr_handle_stream_on_process(cast);
+ 		break;
+ 	case PW_STREAM_STATE_PAUSED:
+ 		if (old == PW_STREAM_STATE_STREAMING && cast->current_frame.pw_buffer) {
+ 			xdpw_pwr_enqueue_buffer(cast);
++			/* Recycle the canceled buffer without presenting its stale PTS
++			 * as the first frame when the consumer resumes. */
++			pw_stream_flush(cast->stream, false);
+ 		}
+-		// fall through
++		break;
+ 	default:
+-		cast->pwr_stream_state = false;
+-		pwr_disarm_process_retry(cast);
+ 		break;
+ 	}
+ }
+@@ -581,6 +596,9 @@ static void pwr_handle_stream_remove_buffer(void *data, struct pw_buffer *buffer
+ 	logprint(DEBUG, "pipewire: remove buffer event handle");
+ 
+ 	struct xdpw_buffer *xdpw_buffer = buffer->user_data;
++	if (cast->current_frame.pw_buffer == buffer) {
++		xdpw_wlr_frame_cancel(cast);
++	}
+ 	if (xdpw_buffer) {
+ 		wl_list_remove(&xdpw_buffer->link);
+ 		xdpw_buffer_destroy(xdpw_buffer);
+@@ -609,22 +627,32 @@ static uint64_t pwr_process_retry_delay(struct xdpw_screencast_instance *cast) {
+ 
+ static void pwr_process_retry(void *data);
+ 
+-static void pwr_arm_process_retry(struct xdpw_screencast_instance *cast) {
++static void pwr_schedule_process(struct xdpw_screencast_instance *cast, uint64_t delay_ns) {
+ 	if (cast->process_retry) {
+ 		return;
+ 	}
+ 	cast->process_retry = xdpw_add_timer(cast->ctx->state,
+-		pwr_process_retry_delay(cast), pwr_process_retry, cast);
++		delay_ns, pwr_process_retry, cast);
+ 	if (!cast->process_retry) {
+ 		logprint(ERROR, "pipewire: failed to arm process retry timer, stream may stall");
+ 	}
+ }
+ 
++static void pwr_arm_process_retry(struct xdpw_screencast_instance *cast) {
++	pwr_schedule_process(cast, pwr_process_retry_delay(cast));
++}
++
+ static void pwr_process_retry(void *data) {
+ 	struct xdpw_screencast_instance *cast = data;
+ 	cast->process_retry = NULL; // timer destroyed in event loop
++	if (pw_stream_get_state(cast->stream, NULL) != PW_STREAM_STATE_STREAMING) {
++		return;
++	}
+ 	pwr_arm_process_retry(cast);
+-	pw_stream_trigger_process(cast->stream);
++	/* A damage-aware Wayland frame may still be waiting for a repaint. */
++	if (!cast->current_frame.pw_buffer) {
++		pw_stream_trigger_process(cast->stream);
++	}
+ }
+ 
+ static void pwr_handle_stream_on_process(void *data) {
+diff --git a/src/screencast/screencast.c b/src/screencast/screencast.c
+index a8fdc10..099a703 100644
+--- a/src/screencast/screencast.c
++++ b/src/screencast/screencast.c
+@@ -93,6 +93,7 @@ void xdpw_screencast_instance_destroy(struct xdpw_screencast_instance *cast) {
+ 			xdpw_destroy_timer(timer);
+ 		}
+ 	}
++	cast->process_retry = NULL;
+ 	struct xdpw_session *sess, *stmp;
+ 	wl_list_for_each_safe(sess, stmp, &cast->ctx->state->xdpw_sessions, link) {
+ 		if (sess->screencast_data.screencast_instance == cast) {
+@@ -118,9 +119,9 @@ void xdpw_screencast_instance_destroy(struct xdpw_screencast_instance *cast) {
+ 		}
+ 	}
+ 
+-	free(cast->target);
+ 	wl_list_remove(&cast->link);
+ 	xdpw_pwr_stream_destroy(cast);
++	free(cast->target);
+ 	assert(wl_list_length(&cast->buffer_list) == 0);
+ 	wl_array_release(&cast->current_frame.damage);
+ 
+@@ -583,6 +584,7 @@ static int method_screencast_start(sd_bus_message *msg, void *data,
+ 		if (strcmp(sess->session_handle, session_handle) == 0) {
+ 				logprint(DEBUG, "dbus: start: found matching session %s", sess->session_handle);
+ 				cast = sess->screencast_data.screencast_instance;
++				break;
+ 		}
+ 	}
+ 	if (!cast) {
+diff --git a/src/screencast/screencast_common.c b/src/screencast/screencast_common.c
+index 721da03..3bb68df 100644
+--- a/src/screencast/screencast_common.c
++++ b/src/screencast/screencast_common.c
+@@ -23,7 +23,7 @@ void randname(char *buf) {
+ }
+ 
+ struct gbm_device *xdpw_gbm_device_create(drmDevice *device) {
+-	if (!(device->available_nodes & (1 << DRM_NODE_RENDER))) {
++	if (!device || !(device->available_nodes & (1 << DRM_NODE_RENDER))) {
+ 		logprint(ERROR, "xdpw: DRM device has no render node");
+ 		return NULL;
+ 	}
+diff --git a/src/screencast/wlr_screencast.c b/src/screencast/wlr_screencast.c
+index 0c8aad7..a30096d 100644
+--- a/src/screencast/wlr_screencast.c
++++ b/src/screencast/wlr_screencast.c
+@@ -26,13 +26,27 @@
+ #include "logger.h"
+ #include "fps_limit.h"
+ 
++static bool xdpw_ext_capture_available(struct xdpw_screencast_instance *cast) {
++	if (cast->ctx->ext_image_copy_capture_manager == NULL) {
++		return false;
++	}
++	switch (cast->target->type) {
++	case MONITOR:
++		return cast->ctx->ext_output_image_capture_source_manager != NULL;
++	case WINDOW:
++		return cast->ctx->ext_foreign_toplevel_image_capture_source_manager != NULL;
++	}
++	return false;
++}
++
+ static void wlr_frame_capture_start(struct xdpw_screencast_instance *cast) {
+ 	fps_limit_measure_start(&cast->fps_limit, cast->framerate);
+-	if (cast->ctx->ext_image_copy_capture_manager
+-			&& cast->ctx->ext_output_image_capture_source_manager) {
++	if (xdpw_ext_capture_available(cast)) {
+ 		xdpw_ext_ic_frame_capture(cast);
+-	} else if (cast->ctx->screencopy_manager) {
++	} else if (cast->target->type == MONITOR && cast->ctx->screencopy_manager) {
+ 		xdpw_wlr_sc_frame_capture(cast);
++	} else {
++		logprint(ERROR, "screencast source is no longer available");
+ 	}
+ }
+ 
+@@ -49,22 +63,41 @@ void xdpw_wlr_frame_capture(struct xdpw_screencast_instance *cast) {
+ 	}
+ }
+ 
++void xdpw_wlr_frame_cancel(struct xdpw_screencast_instance *cast) {
++	/* Cancel delayed captures as well as frames already sent to Wayland.
++	 * PipeWire can pause and replace buffers while a frame is pending. */
++	struct xdpw_timer *timer, *tmp;
++	wl_list_for_each_safe(timer, tmp, &cast->ctx->state->timers, link) {
++		if (timer->user_data == cast && timer->func == wlr_frame_capture_timer) {
++			xdpw_destroy_timer(timer);
++		}
++	}
++	if (xdpw_ext_capture_available(cast)) {
++		if (cast->ext_session.frame) {
++			ext_image_copy_capture_frame_v1_destroy(cast->ext_session.frame);
++			cast->ext_session.frame = NULL;
++		}
++	} else if (cast->target->type == MONITOR && cast->ctx->screencopy_manager) {
++		xdpw_wlr_sc_session_close(cast);
++	}
++	cast->current_frame.damage.size = 0;
++}
++
+ void xdpw_wlr_session_close(struct xdpw_screencast_instance *cast) {
+-	if (cast->ctx->ext_image_copy_capture_manager
+-			&& cast->ctx->ext_output_image_capture_source_manager) {
++	if (xdpw_ext_capture_available(cast)) {
+ 		xdpw_ext_ic_session_close(cast);
+-	} else if (cast->ctx->screencopy_manager) {
++	} else if (cast->target->type == MONITOR && cast->ctx->screencopy_manager) {
+ 		xdpw_wlr_sc_session_close(cast);
+ 	}
+ }
+ 
+ int xdpw_wlr_session_init(struct xdpw_screencast_instance *cast) {
+-	if (cast->ctx->ext_image_copy_capture_manager
+-			&& cast->ctx->ext_output_image_capture_source_manager) {
++	if (xdpw_ext_capture_available(cast)) {
+ 		return xdpw_ext_ic_session_init(cast);
+-	} else if (cast->ctx->screencopy_manager) {
++	} else if (cast->target->type == MONITOR && cast->ctx->screencopy_manager) {
+ 		return xdpw_wlr_sc_session_init(cast);
+ 	}
++	logprint(ERROR, "compositor does not support the selected screencast source");
+ 	return -1;
+ }
+ 
+diff --git a/src/screencast/wlr_screencopy.c b/src/screencast/wlr_screencopy.c
+index 81beb9e..3497287 100644
+--- a/src/screencast/wlr_screencopy.c
++++ b/src/screencast/wlr_screencopy.c
+@@ -231,6 +231,8 @@ static void wlr_register_cb(struct xdpw_screencast_instance *cast) {
+ 
+ 	struct zwlr_screencopy_frame_v1 *frame = zwlr_screencopy_manager_v1_capture_output(
+ 		cast->ctx->screencopy_manager, cast->target->with_cursor, cast->target->output->output);
++	/* Own it before its buffer event arrives: Close may precede that event. */
++	cast->wlr_session.wlr_frame = frame;
+ 	zwlr_screencopy_frame_v1_add_listener(frame, &wlr_frame_listener, cast);
+ 	logprint(TRACE, "wlroots: callbacks registered");
+ }

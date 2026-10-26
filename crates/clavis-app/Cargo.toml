@@ -1,0 +1,36 @@
+[package]
+name = "clavis-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Clavis desktop vault manager, secure prompts and command line client"
+
+[[bin]]
+name = "clavis"
+path = "src/main.rs"
+
+[dependencies]
+clavis-client.workspace = true
+rix-config.workspace = true
+rix-core.workspace = true
+rix-assets.workspace = true
+rix-ipc.workspace = true
+slint = { workspace = true, features = ["renderer-software"] }
+tokio.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+libc.workspace = true
+tracing.workspace = true
+zbus = { version = "5.19", default-features = false, features = ["tokio"] }
+zeroize = "1"
+futures-util = "0.3"
+
+[build-dependencies]
+slint-build.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+i-slint-backend-testing = { version = "=1.17.1", features = ["renderer-software"] }
+image.workspace = true

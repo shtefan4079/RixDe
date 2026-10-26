@@ -1,0 +1,93 @@
+import { SystemState } from "../../../../ui/common/system.slint";
+import { Icons } from "../icons.slint";
+import { Theme } from "../theme.slint";
+export struct TrayItemData {
+    address: string,
+    title: string,
+    icon: image,
+    has-icon: bool,
+    menu-only: bool,
+}
+export component SystemTrayWidget inherits Rectangle {
+    in property <bool> is-edit-mode: false;
+    in property <[TrayItemData]> items;
+    callback item-action(string, int, length, length);
+    callback item-scroll(string, int);
+    callback quick-settings-clicked();
+    in property <[string]> modules;
+    callback open-system-popup(string, length);
+    width: (root.items.length + root.modules.length) * Theme.tray-width;
+    height: Theme.tray-width;
+    private property <length> cell-width: Math.min(Theme.tray-width, root.width / (root.items.length + root.modules.length));
+    border-width: root.is-edit-mode ? 1px : 0px;
+    border-color: Theme.edit-outline;
+    for item[index] in root.items: item-box := Rectangle {
+        x: index * root.cell-width;
+        y: (round((root.height - self.height) / 2px) * 1px);
+        width: root.cell-width;
+        height: Theme.tray-width;
+        border-radius: Theme.radius-sm;
+        background: touch.has-hover ? Theme.surface-hover : transparent;
+        animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+        Image {
+            x: (round((parent.width - self.width) / 2px) * 1px);
+            y: (round((parent.height - self.height) / 2px) * 1px);
+            width: Math.min(Theme.panel-tray-icon-size, root.cell-width, root.height);
+            height: self.width;
+            source: item.has-icon ? item.icon : Icons.applications;
+            image-fit: contain;
+        }
+        touch := TouchArea {
+            width: 100%;
+            height: 100%;
+            clicked => { root.item-action(item.address, item.menu-only ? 1 : 0, item-box.absolute-position.x + item-box.width / 2, item-box.absolute-position.y + item-box.height / 2); }
+            pointer-event(event) => {
+                if event.kind == PointerEventKind.down {
+                    if event.button == PointerEventButton.right { root.item-action(item.address, 1, item-box.absolute-position.x + item-box.width / 2, item-box.absolute-position.y + item-box.height / 2); }
+                    if event.button == PointerEventButton.middle { root.item-action(item.address, 2, item-box.absolute-position.x + item-box.width / 2, item-box.absolute-position.y + item-box.height / 2); }
+                }
+            }
+            scroll-event(event) => {
+                root.item-scroll(item.address, round(event.delta-y / 1px));
+                accept
+            }
+        }
+    }
+    for module[index] in root.modules: module-item := Rectangle {
+        x: (root.items.length + index) * root.cell-width;
+        width: root.cell-width; height: root.height;
+        border-radius: Theme.radius-sm;
+        background: module-touch.has-hover || module-keys.has-focus ? Theme.surface-hover : transparent;
+        forward-focus: module-keys;
+        accessible-role: button;
+        accessible-label: module == "network" ? @tr("Networks") + ": " + SystemState.network-icon-label : module == "audio" ? @tr("Volume") : module == "keyboard" ? @tr("Keyboard layout") : module == "clipboard" ? @tr("Clipboard history") : @tr("Screen sharing");
+        accessible-action-default => { root.open-system-popup(module, module-item.absolute-position.x + module-item.width / 2); }
+        animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+        if module == "keyboard": Text {
+            text: SystemState.layout-label; width: 100%; height: 100%;
+            color: Theme.text-primary; font-size: Theme.font-size-sm; font-weight: 600;
+            horizontal-alignment: center; vertical-alignment: center;
+        }
+        if module != "keyboard": Image {
+            source: module == "clipboard" ? @image-url("../../../../ui/common/icons/clipboard.svg") : module == "capture" ? @image-url("../../../../ui/common/icons/screen-share.svg") : module == "audio" ? SystemState.audio-icon : SystemState.network-icon;
+            width: Theme.panel-tray-icon-size; height: self.width;
+            x: (round((parent.width - self.width) / 2px) * 1px); y: (round((parent.height - self.height) / 2px) * 1px);
+            image-fit: contain;
+        }
+        module-keys := FocusScope {
+            width: 100%; height: 100%;
+            key-pressed(event) => {
+                if event.text == Key.Return || event.text == " " { root.open-system-popup(module, module-item.absolute-position.x + module-item.width / 2); return accept; }
+                reject
+            }
+        }
+        module-touch := TouchArea {
+            width: 100%; height: 100%;
+            mouse-cursor: pointer;
+            clicked => {
+                module-keys.focus();
+                root.open-system-popup(module, module-item.absolute-position.x + module-item.width / 2);
+            }
+        }
+    }
+}

@@ -1,0 +1,32 @@
+[package]
+name = "rix-capture"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+rix-config.workspace = true
+rix-core.workspace = true
+rix-assets.workspace = true
+rix-ipc.workspace = true
+rix-shell-adapter.workspace = true
+slint = { workspace = true, features = ["renderer-software"] }
+image.workspace = true
+tokio.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde_json.workspace = true
+libc.workspace = true
+ab_glyph = "0.2.32"
+fontdb = "0.23"
+
+[build-dependencies]
+slint-build.workspace = true
+
+[dev-dependencies]
+i-slint-renderer-femtovg = { version = "=1.17.1", features = ["opengl"] }
+wl-clipboard-rs = "0.9"

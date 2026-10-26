@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="base" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#101420"/><stop offset=".5" stop-color="#1b2038"/><stop offset="1" stop-color="#131c31"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop stop-color="#6f69b5" stop-opacity=".18"/><stop offset="1" stop-color="#6f69b5" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wave" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#6d83ca" stop-opacity=".11"/><stop offset="1" stop-color="#6c66b0" stop-opacity=".02"/>
+    </linearGradient>
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#97b2ea" stop-opacity=".19"/><stop offset="1" stop-color="#8b8fe0" stop-opacity=".02"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#base)"/>
+  <ellipse cx="870" cy="540" rx="1100" ry="900" fill="url(#glow)"/>
+  <path d="M-180 970C300 390 675 600 1060 880S1600 1230 2090 740V1280H-180Z" fill="url(#wave)"/>
+  <path d="M-160 966C300 390 675 600 1060 880S1600 1230 2090 740" fill="none" stroke="url(#line)"/>
+  <path d="M760-200C515 100 530 410 858 620S1670 870 2130 350V-200Z" fill="url(#wave)"/>
+  <path d="M760-200C515 100 530 410 858 620S1670 870 2130 350" fill="none" stroke="url(#line)"/>
+  <path d="M-180 1050C320 430 650 665 1030 950S1630 1310 2090 850" fill="none" stroke="url(#line)" opacity=".4"/>
+</svg>

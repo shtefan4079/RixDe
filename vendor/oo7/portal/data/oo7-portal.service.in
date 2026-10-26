@@ -1,0 +1,11 @@
+[Unit]
+Description=Secret portal service (oo7 implementation)
+After=graphical-session.target
+Requisite=graphical-session.target
+PartOf=graphical-session.target
+Wants=xdg-desktop-portal.service
+
+[Service]
+Type=dbus
+BusName=@dbus_name@
+ExecStart=@libexecdir@/@bin_name@

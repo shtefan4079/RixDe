@@ -1,0 +1,222 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { MenuSurface } from "../../../ui/common/context_menu.slint";
+import { ScrollArea } from "../../../ui/common/scroll_area.slint";
+import { LineEdit } from "../../../ui/common/line_edit.slint";
+import { Button } from "controls.slint";
+
+export struct PropertyDetail { label: string, value: string }
+export struct PropertyPermission { label: string, read: bool, write: bool, execute: bool }
+
+export global PropertiesView {
+    in-out property <image> icon;
+    in-out property <string> name;
+    in-out property <string> description;
+    in-out property <string> location;
+    in-out property <string> link-target;
+    in-out property <string> note;
+    in-out property <string> permission-note;
+    in-out property <[PropertyDetail]> details;
+    in-out property <[PropertyDetail]> dates;
+    in-out property <[PropertyDetail]> ownership;
+    in-out property <[PropertyPermission]> permissions;
+    in-out property <bool> multiple;
+    callback copy-paths();
+}
+
+component SectionCard inherits Rectangle {
+    background: Theme.overlay-idle;
+    border-radius: Theme.radius-md;
+    border-width: 1px;
+    border-color: Theme.control-border.with-alpha(0.4);
+}
+
+component SectionHeader inherits Text {
+    color: Theme.text-secondary;
+    font-size: Theme.font-size-sm;
+    font-weight: 600;
+}
+
+component Details inherits VerticalLayout {
+    in property <[PropertyDetail]> rows;
+    spacing: Theme.spacing-xs;
+    for row in root.rows: HorizontalLayout {
+        spacing: Theme.spacing-lg;
+        Text {
+            text: row.label;
+            width: Math.min(Theme.font-size-md * 9, parent.width * 0.32);
+            horizontal-stretch: 0;
+            color: Theme.text-muted;
+            font-size: Theme.font-size-sm;
+            wrap: word-wrap;
+            vertical-alignment: center;
+        }
+        Text {
+            text: row.value;
+            horizontal-stretch: 1;
+            color: Theme.text-primary;
+            font-size: Theme.font-size-sm;
+            wrap: word-wrap;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component PropertiesPanel inherits MenuSurface {
+    callback dismissed();
+    public function focus-panel() { close-button.focus-button(); }
+    keys := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.Escape { root.dismissed(); return accept; }
+            if event.text == Key.Tab || event.text == Key.Backtab {
+                let backwards = event.modifiers.shift || event.text == Key.Backtab;
+                if close-button.has-focus {
+                    if backwards { copy-button.focus-button(); } else { location.focus-input(); }
+                } else if copy-button.has-focus {
+                    if backwards {
+                        if PropertiesView.link-target != "" { link.focus-input(); }
+                        else { location.focus-input(); }
+                    } else { close-button.focus-button(); }
+                } else if link.has-focus {
+                    if backwards { location.focus-input(); } else { copy-button.focus-button(); }
+                } else {
+                    if backwards { close-button.focus-button(); }
+                    else if PropertiesView.link-target != "" { link.focus-input(); }
+                    else { copy-button.focus-button(); }
+                }
+                return accept;
+            }
+            if event.text == Key.PageUp { scroll.viewport-y = Math.min(0px, scroll.viewport-y + scroll.height); return accept; }
+            if event.text == Key.PageDown { scroll.viewport-y = Math.max(Math.min(0px, scroll.height - scroll.content-height), scroll.viewport-y - scroll.height); return accept; }
+
+            if event.modifiers.control || event.modifiers.alt { return accept; }
+            reject
+        }
+        VerticalLayout {
+            padding: Theme.spacing-lg;
+            spacing: Theme.default-spacing;
+            HorizontalLayout {
+                alignment: space-between;
+                Text { text: @tr("Properties"); color: Theme.text-primary; font-size: Theme.font-size-md; font-weight: 700; vertical-alignment: center; }
+            }
+            scroll := ScrollArea {
+                vertical-stretch: 1;
+                content-height: contents.preferred-height;
+                contents := VerticalLayout {
+                    width: scroll.content-width;
+                    spacing: Theme.default-spacing;
+                    HorizontalLayout {
+                        spacing: Theme.default-spacing;
+                        Rectangle {
+                            width: 52px; height: 52px;
+                            border-radius: Theme.radius-md;
+                            background: Theme.overlay-idle;
+                            border-width: 1px;
+                            border-color: Theme.control-border.with-alpha(0.35);
+                            Image {
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                                width: 36px; height: 36px;
+                                source: PropertiesView.icon;
+                                image-fit: contain;
+                            }
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: Theme.spacing-xs;
+                            Text { text: PropertiesView.name; color: Theme.text-primary; font-size: Theme.font-size-md; font-weight: 600; wrap: word-wrap; }
+                            if PropertiesView.description != "": Text { text: PropertiesView.description; color: Theme.text-secondary; font-size: Theme.font-size-sm; wrap: word-wrap; }
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: Theme.spacing-xs;
+                        SectionHeader { text: PropertiesView.multiple ? @tr("Location") : @tr("Full path"); }
+                        location := LineEdit {
+                            text: PropertiesView.location;
+                            accessible-label: PropertiesView.multiple ? @tr("Location") : @tr("Full path");
+                            read-only: true;
+                            changed has-focus => { if self.has-focus { scroll.reveal(self.absolute-position.y - contents.absolute-position.y, self.absolute-position.y - contents.absolute-position.y + self.height); } }
+                        }
+                        if PropertiesView.link-target != "": SectionHeader { text: @tr("Link target"); }
+                        link := LineEdit {
+                            visible: PropertiesView.link-target != "";
+                            min-height: self.visible ? Theme.menu-action-size : 0px;
+                            preferred-height: self.min-height;
+                            max-height: self.visible ? 65535px : 0px;
+                            text: PropertiesView.link-target;
+                            accessible-label: @tr("Link target");
+                            read-only: true;
+                            changed has-focus => { if self.has-focus { scroll.reveal(self.absolute-position.y - contents.absolute-position.y, self.absolute-position.y - contents.absolute-position.y + self.height); } }
+                        }
+                    }
+                    if PropertiesView.details.length > 0: SectionCard {
+                        VerticalLayout {
+                            padding: Theme.default-spacing;
+                            spacing: Theme.default-spacing;
+                            SectionHeader { text: @tr("Details"); }
+                            Details { rows: PropertiesView.details; }
+                            if PropertiesView.note != "": Text {
+                                text: PropertiesView.note;
+                                color: Theme.text-secondary;
+                                font-size: Theme.font-size-sm;
+                                wrap: word-wrap;
+                            }
+                        }
+                    }
+                    if PropertiesView.dates.length > 0: SectionCard {
+                        VerticalLayout {
+                            padding: Theme.default-spacing;
+                            spacing: Theme.default-spacing;
+                            SectionHeader { text: @tr("Dates"); }
+                            Details { rows: PropertiesView.dates; }
+                        }
+                    }
+                    SectionCard {
+                        VerticalLayout {
+                            padding: Theme.default-spacing;
+                            spacing: Theme.default-spacing;
+                            SectionHeader { text: @tr("Permissions"); }
+                            if PropertiesView.permissions.length > 0: HorizontalLayout {
+                                spacing: Theme.default-spacing;
+                                Text { text: ""; horizontal-stretch: 2; }
+                                for label in [@tr("Read"), @tr("Write"), @tr("Execute")]: Text {
+                                    text: label; horizontal-stretch: 1; color: Theme.text-muted; font-size: Theme.font-size-sm; horizontal-alignment: center;
+                                }
+                            }
+                            for permission in PropertiesView.permissions: HorizontalLayout {
+                                spacing: Theme.default-spacing;
+                                Text { text: permission.label; horizontal-stretch: 2; color: Theme.text-secondary; font-size: Theme.font-size-sm; wrap: word-wrap; }
+                                for allowed in [permission.read, permission.write, permission.execute]: Text {
+                                    text: allowed ? "✓" : "—"; horizontal-stretch: 1; color: allowed ? Theme.accent : Theme.text-muted; font-size: Theme.font-size-md; horizontal-alignment: center;
+                                    accessible-label: allowed ? @tr("Allowed") : @tr("Not allowed");
+                                }
+                            }
+                            if PropertiesView.permission-note != "": Text { text: PropertiesView.permission-note; color: Theme.text-muted; font-size: Theme.font-size-sm; wrap: word-wrap; }
+                            if PropertiesView.ownership.length > 0: Details { rows: PropertiesView.ownership; }
+                        }
+                    }
+                }
+            }
+            Rectangle { height: 1px; vertical-stretch: 0; background: Theme.divider; }
+            footer := Rectangle {
+                private property <bool> stacked: self.width < Theme.font-size-md * 22;
+                private property <length> button-height: Theme.icon-size + Theme.default-spacing * 2;
+                height: self.button-height * (self.stacked ? 2 : 1) + (self.stacked ? Theme.default-spacing : 0px);
+                vertical-stretch: 0;
+                copy-button := Button {
+                    x: 0px; y: 0px;
+                    width: footer.stacked ? footer.width : Math.min(footer.width * 0.65, Theme.font-size-md * 12);
+                    height: footer.button-height;
+                    text: PropertiesView.multiple ? @tr("Copy paths") : @tr("Copy path");
+                    clicked => { PropertiesView.copy-paths(); }
+                }
+                close-button := Button {
+                    x: footer.stacked ? 0px : footer.width - self.width;
+                    y: footer.stacked ? footer.button-height + Theme.default-spacing : 0px;
+                    width: footer.stacked ? footer.width : Math.min(footer.width * 0.3, Theme.font-size-md * 7);
+                    height: footer.button-height;
+                    text: @tr("Close"); active: true; clicked => { root.dismissed(); }
+                }
+            }
+        }
+    }
+}

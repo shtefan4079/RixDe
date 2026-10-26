@@ -1,0 +1,56 @@
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { ScrollArea } from "../../../../ui/common/scroll_area.slint";
+import { Button } from "std-widgets.slint";
+import { LineEdit } from "../../../../ui/common/line_edit.slint";
+export struct ClipboardItem { id: string, label: string, image: bool, pinned: bool }
+export global ClipboardState {
+    in-out property <[ClipboardItem]> items;
+    in-out property <string> query;
+    in-out property <string> error;
+    callback search(string);
+    callback select(string);
+    callback remove(string);
+    callback pin(string, bool);
+    callback clear();
+}
+export component ClipboardView inherits Rectangle {
+    VerticalLayout {
+        padding: Theme.spacing-lg; spacing: Theme.default-spacing;
+        HorizontalLayout {
+            Text { text: @tr("Clipboard"); font-size: Theme.font-size-xl; color: Theme.text-primary; font-weight: 600; vertical-alignment: center; horizontal-stretch: 1; }
+            Button { text: @tr("Clear"); enabled: ClipboardState.items.length > 0; clicked => { ClipboardState.clear(); } }
+        }
+        LineEdit { placeholder-text: @tr("Search"); text <=> ClipboardState.query; edited(text) => { ClipboardState.search(text); } }
+        if ClipboardState.error != "": Text { text: ClipboardState.error; color: Theme.danger; wrap: word-wrap; }
+        if ClipboardState.items.length == 0: Text { text: ClipboardState.query == "" ? @tr("History is empty") : @tr("Nothing found"); color: Theme.text-muted; vertical-alignment: center; horizontal-alignment: center; vertical-stretch: 1; }
+        ScrollArea {
+            vertical-stretch: 1; content-height: entries.preferred-height;
+            entries := VerticalLayout {
+                x: 0px; y: 0px;
+                width: parent.content-width; height: self.preferred-height; spacing: Theme.spacing-xs;
+                for item in ClipboardState.items: Rectangle {
+                    height: Theme.menu-row-height * 2;
+                    border-radius: Theme.radius-sm;
+                    background: touch.has-hover ? Theme.surface-hover : Theme.control-surface;
+                    animate background { duration: Theme.hover-duration * 1ms; }
+                    touch := TouchArea { clicked => { ClipboardState.select(item.id); } }
+                    HorizontalLayout {
+                        padding: Theme.default-spacing; spacing: Theme.default-spacing;
+                        Text { text: item.label; color: Theme.text-primary; wrap: word-wrap; overflow: elide; vertical-alignment: center; horizontal-stretch: 1; }
+                        Rectangle {
+                            width: Theme.menu-action-size; height: self.width; border-radius: Theme.radius-sm; background: pin-touch.has-hover || item.pinned ? Theme.surface-active : transparent;
+                            Image { source: Icons.pin; colorize: item.pinned ? Theme.accent : Theme.text-secondary; width: Theme.icon-size-sm; height: self.width; x: (parent.width - self.width)/2; y: self.x; }
+                            pin-touch := TouchArea { clicked => { ClipboardState.pin(item.id, !item.pinned); } }
+                        }
+                        Rectangle {
+                            width: Theme.menu-action-size; height: self.width; border-radius: Theme.radius-sm; background: delete-touch.has-hover ? Theme.danger-bg : transparent;
+                            Image { source: Icons.close; colorize: Theme.text-secondary; width: Theme.icon-size-sm; height: self.width; x: (parent.width - self.width)/2; y: self.x; }
+                            delete-touch := TouchArea { clicked => { ClipboardState.remove(item.id); } }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

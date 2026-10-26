@@ -1,0 +1,333 @@
+import { ThemeFrame } from "../frame.slint";
+import { Theme } from "../theme.slint";
+import { AppIcon } from "common.slint";
+
+export struct TaskWindowData { id: int, title: string, active: bool }
+export struct TaskbarItemData {
+    windows: [TaskWindowData],
+    has-audio: bool,
+    audio-muted: bool,
+    audio-volume: int,
+    id: int,
+    title: string,
+    app-id: string,
+    badge: string,
+    icon: image,
+    has-icon: bool,
+    is-active: bool,
+    is-running: bool,
+    is-minimized: bool,
+    is-maximized: bool,
+    is-pinned: bool,
+}
+
+component TaskbarItem inherits Rectangle {
+    in property <TaskbarItemData> item;
+    in property <length> item-height;
+    in property <bool> show-labels: false;
+    in property <bool> interactions-enabled: true;
+    in property <bool> dragging: false;
+    in property <bool> is-drag-source: false;
+    callback pressed(int, length, length);
+    callback moved(length, length);
+    callback released(length, length, bool);
+    callback cancelled();
+    callback scroll(length);
+    callback audio-toggle(int);
+    callback hover(int, bool, length);
+    callback menu(int, length, length);
+
+    width: root.show-labels && root.item.is-active ? Theme.task-label-width : Theme.task-width;
+    height: root.item-height;
+    border-radius: 0px;
+    border-width: 0px;
+    background: Colors.transparent;
+    opacity: root.is-drag-source ? 0.35 : 1;
+    horizontal-stretch: 0;
+
+    highlight := Rectangle {
+        width: root.width * Theme.task-highlight-scale;
+        height: root.height * Theme.task-highlight-scale;
+        x: round((root.width - self.width) / 2px) * 1px;
+        y: round((root.height - self.height) / 2px) * 1px;
+        border-radius: Math.min(
+            Theme.radius-md * Theme.task-highlight-radius-scale,
+            self.width / 2,
+            self.height / 2,
+        );
+        background: touch.has-hover && !Theme.task-hover-frame.available ? Theme.task-hover-background : root.item.is-active && !Theme.task-active-frame.available ? Theme.task-active-background : Colors.transparent;
+        animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+    }
+
+    if Theme.task-active-frame.available: ThemeFrame { x: highlight.x; y: highlight.y; width: highlight.width; height: highlight.height; skin: Theme.task-active-frame; opacity: root.item.is-active ? 1 : 0; animate opacity { duration: Theme.hover-duration * 1ms; } }
+    if Theme.task-hover-frame.available: ThemeFrame { x: highlight.x; y: highlight.y; width: highlight.width; height: highlight.height; skin: Theme.task-hover-frame; opacity: touch.has-hover && !root.item.is-active ? 1 : 0; animate opacity { duration: Theme.hover-duration * 1ms; } }
+    touch := TouchArea {
+        enabled: root.interactions-enabled;
+        changed has-hover => { if !root.dragging { root.hover(root.item.id, self.has-hover, self.absolute-position.x + self.width / 2); } }
+        mouse-cursor: root.dragging ? grabbing : pointer;
+        pointer-event(event) => {
+            let x = self.absolute-position.x + self.mouse-x;
+            let y = self.absolute-position.y + self.mouse-y;
+            if event.button == PointerEventButton.left && event.kind == PointerEventKind.down { root.pressed(root.item.id, x, y); }
+            if event.button == PointerEventButton.left && event.kind == PointerEventKind.up {
+                root.released(x, y, self.mouse-x >= 0px && self.mouse-x < self.width && self.mouse-y >= 0px && self.mouse-y < self.height);
+            }
+            if event.kind == PointerEventKind.cancel { root.cancelled(); }
+            if !root.dragging && event.button == PointerEventButton.right && event.kind == PointerEventKind.up {
+                root.menu(root.item.id, touch.absolute-position.x + touch.mouse-x, touch.absolute-position.y + touch.mouse-y);
+            }
+        }
+        moved => { if self.pressed { root.moved(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y); } }
+        scroll-event(event) => { if !root.dragging { root.scroll(event.delta-x != 0px ? event.delta-x : event.delta-y); } accept }
+    }
+
+    icon := AppIcon {
+        x: root.show-labels && root.item.is-active ? Theme.task-padding : (round((root.width - self.width) / 2px) * 1px);
+        y: (round((root.height - self.height) / 2px) * 1px);
+        icon: root.item.icon;
+        has-icon: root.item.has-icon;
+        icon-size: Math.max(1px, Math.min(Theme.panel-icon-size, root.height - Theme.task-padding * 2, root.width - Theme.task-padding * 2));
+    }
+    if root.show-labels && root.item.is-active: Text {
+        x: icon.x + icon.width + Theme.task-padding;
+        width: Math.max(0px, root.width - self.x - Theme.task-padding);
+        height: root.height;
+        text: root.item.title;
+        color: root.item.is-minimized ? Theme.text-muted : Theme.text-primary;
+        font-size: Theme.font-size-md;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    if root.item.windows.length > 1: Rectangle {
+        x: Theme.task-padding;
+        y: parent.height - self.height - Theme.task-padding;
+        width: Theme.icon-size-sm;
+        height: self.width;
+        border-radius: Theme.radius-sm;
+        background: Theme.is-aero ? @linear-gradient(180deg, Theme.glass-start 0%, Theme.glass-end 100%) : Theme.background;
+        border-width: 1px;
+        border-color: Theme.border;
+        Text {
+            text: root.item.windows.length;
+            color: Theme.text-primary;
+            font-size: Theme.font-size-sm;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            width: 100%;
+            height: 100%;
+        }
+    }
+    if root.item.has-audio: Rectangle {
+        x: parent.width - self.width; y: 0px;
+        width: Theme.icon-size-sm + Theme.spacing-xs; height: self.width;
+        border-radius: self.width / 2;
+        background: audio-touch.has-hover ? Theme.surface-hover : Theme.menu-bg;
+        animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+        Image { source: root.item.audio-muted ? @image-url("../../../../ui/common/icons/audio-volume-muted.svg") : @image-url("../../../../ui/common/icons/audio-volume-high.svg"); colorize: Theme.text-primary; x: Theme.spacing-xs / 2; y: self.x; width: Theme.icon-size-sm; height: self.width; image-fit: contain; }
+        audio-touch := TouchArea { enabled: root.interactions-enabled && !root.dragging; clicked => { root.audio-toggle(root.item.id); } }
+    }
+
+    Rectangle {
+        opacity: root.item.is-running && !(root.item.is-active && Theme.task-active-frame.available) && !(touch.has-hover && !root.item.is-active && Theme.task-hover-frame.available) ? 1 : 0;
+        animate opacity { duration: Theme.hover-duration * 1ms; }
+        width: root.item.is-active ? Theme.task-indicator-active-width : Theme.task-indicator-width;
+        height: Theme.task-indicator-height;
+
+        border-radius: Math.min(Theme.radius-pill, self.width / 2, self.height / 2);
+        background: root.item.is-active || touch.has-hover ? Theme.accent : Theme.text-muted;
+        x: (round((parent.width - self.width) / 2px) * 1px);
+        y: parent.height - self.height;
+        animate width, background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+    }
+
+    if root.item.is-pinned && !root.item.is-running && Theme.task-pin-indicator-size > 0px: Rectangle {
+        width: Theme.task-pin-indicator-size;
+        height: self.width;
+        border-radius: Math.min(Theme.radius-pill, self.width / 2, self.height / 2);
+        opacity: touch.has-hover && Theme.task-hover-frame.available ? 0 : 1;
+        background: touch.has-hover ? Theme.accent : Theme.text-muted;
+        x: (round((parent.width - self.width) / 2px) * 1px);
+        y: parent.height - self.height;
+    }
+}
+
+export component TaskbarWidget inherits Rectangle {
+    in property <[TaskbarItemData]> items;
+    in property <int> content-width: 32;
+    in property <bool> show-labels: false;
+    in property <bool> is-edit-mode: false;
+    callback item-clicked(int);
+    callback audio-toggle(int);
+    callback item-hover(int, bool, length);
+    callback item-context-menu(int, length, length);
+    callback drag-started(int);
+    callback item-moved(int, int);
+    callback drag-state-changed(bool);
+    in property <int> cancel-generation: 0;
+    out property <bool> drag-active: false;
+    private property <bool> press-pending: false;
+    private property <bool> drop-pending: false;
+    private property <int> source-index: 0;
+    private property <int> source-id: 0;
+    private property <int> source-count: 0;
+    private property <int> press-generation: 0;
+    private property <TaskbarItemData> drag-item;
+    private property <length> press-x;
+    private property <length> press-y;
+    private property <length> pointer-x;
+    private property <length> pointer-y;
+    private property <int> destination: 0;
+    private property <bool> source-valid: !root.is-edit-mode && root.cancel-generation == root.press-generation && root.source-index >= 0 && root.source-index < root.items.length && root.items.length == root.source-count && root.items[root.source-index].id == root.source-id;
+    private property <length> content-pointer-x: root.pointer-x - view.absolute-position.x - view.viewport-x - view.highlight-overflow-x;
+    private property <bool> valid-drop: root.pointer-y >= root.absolute-position.y && root.pointer-y < root.absolute-position.y + root.height;
+    changed source-valid => { if !root.source-valid { root.cancel-drag(); } }
+    changed is-edit-mode => { if root.is-edit-mode { root.cancel-drag(); } }
+    changed cancel-generation => { root.cancel-drag(); }
+    changed drag-active => { root.drag-state-changed(root.drag-active); }
+    changed content-width => { root.scroll-by(0px); }
+    changed width => { root.scroll-by(0px); }
+
+    public function cancel-drag() { root.press-pending = false; root.drop-pending = false; root.drag-active = false; }
+    function scroll-by(delta: length) {
+        view.viewport-x = Math.clamp(view.viewport-x + delta, Math.min(0px, root.width - root.content-width * 1px), 0px);
+    }
+    function begin-press(index: int, id: int, x: length, y: length) {
+        root.cancel-drag();
+        root.source-index = index; root.source-id = id; root.source-count = root.items.length;
+        root.press-generation = root.cancel-generation;
+        root.drag-item = root.items[index]; root.destination = index;
+        root.press-x = x; root.press-y = y; root.pointer-x = x; root.pointer-y = y;
+        root.press-pending = !root.is-edit-mode;
+    }
+    function move-pointer(x: length, y: length) {
+        if root.press-pending && root.source-valid {
+            root.pointer-x = x; root.pointer-y = y;
+            if !root.drag-active && (abs(x - root.press-x) >= 6px || abs(y - root.press-y) >= 6px) {
+                root.drag-active = true; keys.focus(); root.drag-started(root.source-id);
+            }
+            if root.drag-active {
+                if root.content-pointer-x < 0px { root.destination = 0; }
+                if root.content-pointer-x >= root.content-width * 1px { root.destination = Math.max(0, root.items.length - 1); }
+            }
+        }
+    }
+    function release-pointer(x: length, y: length, inside: bool) {
+        if root.press-pending {
+            root.move-pointer(x, y);
+            root.press-pending = false;
+            if root.drag-active {
+                if root.source-valid && root.valid-drop { root.drop-pending = true; }
+                else { root.cancel-drag(); }
+            } else {
+                let id = root.source-id;
+                let activate = root.source-valid && inside;
+                root.cancel-drag();
+                if activate { root.item-clicked(id); }
+            }
+        }
+    }
+
+    width: root.content-width * 1px;
+    height: Theme.panel-icon-size + Theme.task-padding * 2;
+
+    border-width: 1px;
+    border-color: root.is-edit-mode ? Theme.edit-outline : Colors.transparent;
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.Escape && (root.press-pending || root.drag-active) { root.cancel-drag(); return accept; }
+            reject
+        }
+    }
+
+    Timer {
+        interval: 0ms;
+        running: root.drop-pending;
+        triggered => {
+            let id = root.source-id; let destination = root.destination;
+            let reorder = root.source-valid && root.valid-drop && destination != root.source-index;
+            root.cancel-drag();
+            if reorder { root.item-moved(id, destination); }
+        }
+    }
+    Timer {
+        interval: 40ms;
+        running: root.drag-active && root.press-pending && root.content-width * 1px > root.width;
+        triggered => {
+            if root.valid-drop {
+                if root.pointer-x < root.absolute-position.x + 20px { root.scroll-by(12px); }
+                if root.pointer-x > root.absolute-position.x + root.width - 20px { root.scroll-by(-12px); }
+            }
+        }
+    }
+
+    view := Flickable {
+
+        interactive: false;
+        private property <length> highlight-overflow-x: Math.max(0px, ((root.show-labels ? Theme.task-label-width : Theme.task-width) * (Theme.task-highlight-scale - 1)) / 2);
+        private property <length> highlight-overflow-y: Math.max(0px, (root.height * (Theme.task-highlight-scale - 1)) / 2);
+        x: -self.highlight-overflow-x;
+        y: -self.highlight-overflow-y;
+        width: parent.width + self.highlight-overflow-x * 2;
+        height: parent.height + self.highlight-overflow-y * 2;
+        viewport-width: root.content-width * 1px + self.highlight-overflow-x * 2;
+        viewport-height: self.height;
+        HorizontalLayout {
+            x: parent.highlight-overflow-x;
+            y: parent.highlight-overflow-y;
+            width: root.content-width * 1px + parent.highlight-overflow-x * 2;
+            height: root.height;
+            spacing: Theme.task-spacing;
+            alignment: start;
+            for entry[index] in root.items: task := TaskbarItem {
+                private property <bool> pointer-in-slot: root.drag-active && root.content-pointer-x >= self.x - Theme.task-spacing / 2 && root.content-pointer-x < self.x + self.width + Theme.task-spacing / 2;
+                private property <int> drop-candidate: !self.pointer-in-slot ? -1 : root.content-pointer-x < self.x + self.width / 2 ? (index > root.source-index ? index - 1 : index) : (index < root.source-index ? index + 1 : index);
+                changed drop-candidate => { if self.drop-candidate >= 0 { root.destination = self.drop-candidate; } }
+                item: entry;
+                item-height: root.height;
+                show-labels: root.show-labels;
+                interactions-enabled: !root.is-edit-mode;
+                dragging: root.drag-active;
+                is-drag-source: root.drag-active && index == root.source-index;
+                hover(id, entered, x) => { root.item-hover(id, entered, x); }
+                audio-toggle(id) => { root.audio-toggle(id); }
+                pressed(id, x, y) => { root.begin-press(index, id, x, y); }
+                moved(x, y) => { root.move-pointer(x, y); }
+                released(x, y, inside) => { root.release-pointer(x, y, inside); }
+                cancelled => { root.cancel-drag(); }
+                scroll(delta) => { root.scroll-by(delta); }
+                menu(id, x, y) => { root.item-context-menu(id, x, y); }
+                if root.drag-active && root.valid-drop && root.destination == index: Rectangle {
+                    x: root.destination < root.source-index ? -Theme.task-spacing / 2 : parent.width + Theme.task-spacing / 2 - self.width;
+                    y: Theme.task-padding / 2;
+                    width: 2px; height: parent.height - Theme.task-padding;
+                    background: Theme.accent; border-radius: 1px;
+                }
+            }
+        }
+    }
+    if root.drag-active: Rectangle {
+        width: root.show-labels && root.drag-item.is-active ? Theme.task-label-width : Theme.task-width;
+        height: root.height;
+        x: Math.clamp(root.pointer-x - root.absolute-position.x - self.width / 2, 0px, Math.max(0px, root.width - self.width));
+        y: 0px;
+        border-radius: Theme.radius-md;
+        border-width: 1px; border-color: Theme.accent;
+        background: Theme.task-active-background;
+        opacity: root.valid-drop ? 0.9 : 0.5;
+        AppIcon {
+            x: root.show-labels && root.drag-item.is-active ? Theme.task-padding : (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            icon: root.drag-item.icon; has-icon: root.drag-item.has-icon;
+            icon-size: Math.max(1px, Math.min(Theme.panel-icon-size, root.height - Theme.task-padding * 2));
+        }
+        if root.show-labels && root.drag-item.is-active: Text {
+            x: Theme.task-padding * 2 + Theme.panel-icon-size;
+            width: Math.max(0px, parent.width - self.x - Theme.task-padding); height: parent.height;
+            text: root.drag-item.title; color: Theme.text-primary;
+            font-size: Theme.font-size-md; vertical-alignment: center; overflow: elide;
+        }
+    }
+}

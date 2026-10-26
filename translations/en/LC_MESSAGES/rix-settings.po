@@ -1,0 +1,1030 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: RixDE\n"
+"PO-Revision-Date: 2026-09-29 00:00+0000\n"
+"Last-Translator: RixDE contributors\n"
+"Language-Team: en\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Cut"
+msgstr "Cut"
+
+msgid "Copy"
+msgstr "Copy"
+
+msgid "Paste"
+msgstr "Paste"
+
+msgid "Select All"
+msgstr "Select All"
+
+msgid " px"
+msgstr " px"
+
+msgid "%"
+msgstr "%"
+
+msgid "A NetworkManager device plugin is missing"
+msgstr "A NetworkManager device plugin is missing"
+
+msgid "Adapter"
+msgstr "Adapter"
+
+msgid "Add network"
+msgstr "Add network"
+
+msgid "Add panel"
+msgstr "Add panel"
+
+msgid "Addresses (CIDR, separated by commas)"
+msgstr "Addresses (CIDR, separated by commas)"
+
+msgid "Addresses must use address/prefix notation"
+msgstr "Addresses must use address/prefix notation"
+
+msgid "Advanced"
+msgstr "Advanced"
+
+msgid "All adapters"
+msgstr "All adapters"
+
+msgid "All delays count from the last input. Set a delay to Never to disable it."
+msgstr "All delays count from the last input. Set a delay to Never to disable it."
+
+msgid "All displays"
+msgstr "All displays"
+
+msgid "Anonymous identity"
+msgstr "Anonymous identity"
+
+msgid "Applications and lid"
+msgstr "Applications and lid"
+
+msgid "Apply panel and application menu layout"
+msgstr "Apply panel and application menu layout"
+
+msgid "Arrange displays automatically"
+msgstr "Arrange displays automatically"
+
+msgid "Authentication method"
+msgstr "Authentication method"
+
+msgid "Authentication server domain"
+msgstr "Authentication server domain"
+
+msgid "Autoconnect priority"
+msgstr "Autoconnect priority"
+
+msgid "Automatic"
+msgstr "Automatic"
+
+msgid "Automatic (DHCP)"
+msgstr "Automatic (DHCP)"
+
+msgid "Automatic (PAC)"
+msgstr "Automatic (PAC)"
+
+msgid "Automatic connection"
+msgstr "Automatic connection"
+
+msgid "Available networks"
+msgstr "Available networks"
+
+msgid "Available to all users"
+msgstr "Available to all users"
+
+msgid "BSSID must contain six hexadecimal bytes"
+msgstr "BSSID must contain six hexadecimal bytes"
+
+msgid "CA certificate"
+msgstr "CA certificate"
+
+msgid "Check connection"
+msgstr "Check connection"
+
+msgid "Choose automatically"
+msgstr "Choose automatically"
+
+msgid "Choose the language for RixDE and newly launched applications. Restart open applications to update them."
+msgstr "Choose the language for RixDE and newly launched applications. Restart open applications to update them."
+
+msgid "Client certificate"
+msgstr "Client certificate"
+
+msgid "Configure"
+msgstr "Configure"
+
+msgid "Connect automatically"
+msgstr "Connect automatically"
+
+msgid "Connection name"
+msgstr "Connection name"
+
+msgid "Connection priority must be between -999 and 999"
+msgstr "Connection priority must be between -999 and 999"
+
+msgid "Connection settings"
+msgstr "Connection settings"
+
+msgid "Continue"
+msgstr "Continue"
+
+msgid "Could not create a connection ID"
+msgstr "Could not create a connection ID"
+
+msgid "Could not determine the current user"
+msgstr "Could not determine the current user"
+
+msgid "Could not save taskbar order"
+msgstr "Could not save taskbar order"
+
+msgid "Customize plan"
+msgstr "Customize plan"
+
+msgid "DNS servers (separated by commas)"
+msgstr "DNS servers (separated by commas)"
+
+msgid "Detect automatically"
+msgstr "Detect automatically"
+
+msgid "Device is unavailable"
+msgstr "Device is unavailable"
+
+msgid "Device is unmanaged"
+msgstr "Device is unmanaged"
+
+msgid "Dim screen after"
+msgstr "Dim screen after"
+
+msgid "Dimmed level"
+msgstr "Dimmed level"
+
+msgid "Disconnect"
+msgstr "Disconnect"
+
+msgid "Disconnecting…"
+msgstr "Disconnecting…"
+
+msgid "Dismiss"
+msgstr "Dismiss"
+
+msgid "Edge"
+msgstr "Edge"
+
+msgid "Edit network profile"
+msgstr "Edit network profile"
+
+msgid "Empty, preserve, permanent or random"
+msgstr "Empty, preserve, permanent or random"
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Enter a profile name"
+msgstr "Enter a profile name"
+
+msgid "Enter the VPN plugin service type"
+msgstr "Enter the VPN plugin service type"
+
+msgid "Enter the network username"
+msgstr "Enter the network username"
+
+msgid "Enter the requested VPN credentials"
+msgstr "Enter the requested VPN credentials"
+
+msgid "Enter the requested network credentials"
+msgstr "Enter the requested network credentials"
+
+msgid "Fill display"
+msgstr "Fill display"
+
+msgid "Fixed length"
+msgstr "Fixed length"
+
+msgid "Follow the language and locale from your login session."
+msgstr "Follow the language and locale from your login session."
+
+msgid "Forget this profile and disconnect?"
+msgstr "Forget this profile and disconnect?"
+
+msgid "Gateway"
+msgstr "Gateway"
+
+msgid "General"
+msgstr "General"
+
+msgid "Hardware mode"
+msgstr "Hardware mode"
+
+msgid "Hidden network"
+msgstr "Hidden network"
+
+msgid "Horizontal position"
+msgstr "Horizontal position"
+
+msgid "Hotspot"
+msgstr "Hotspot"
+
+msgid "IP address has the wrong address family"
+msgstr "IP address has the wrong address family"
+
+msgid "IPv4 method"
+msgstr "IPv4 method"
+
+msgid "IPv6 method"
+msgstr "IPv6 method"
+
+msgid "Identity"
+msgstr "Identity"
+
+msgid "Ignore"
+msgstr "Ignore"
+
+msgid "Images: PNG, JPEG, WebP, BMP, TIFF. Animation: GIF, WebP, MP4, WebM, MKV, MOV."
+msgstr "Images: PNG, JPEG, WebP, BMP, TIFF. Animation: GIF, WebP, MP4, WebM, MKV, MOV."
+
+msgid "Import or select an existing profile for this connection type"
+msgstr "Import or select an existing profile for this connection type"
+
+msgid "Inner authentication"
+msgstr "Inner authentication"
+
+msgid "Installed themes"
+msgstr "Installed themes"
+
+msgid "Invalid BSSID"
+msgstr "Invalid BSSID"
+
+msgid "Invalid IP address"
+msgstr "Invalid IP address"
+
+msgid "Invalid IP configuration method"
+msgstr "Invalid IP configuration method"
+
+msgid "Invalid VPN property"
+msgstr "Invalid VPN property"
+
+msgid "Invalid Wi-Fi band"
+msgstr "Invalid Wi-Fi band"
+
+msgid "Invalid metered or power saving value"
+msgstr "Invalid metered or power saving value"
+
+msgid "Invalid network prefix"
+msgstr "Invalid network prefix"
+
+msgid "Invalid route"
+msgstr "Invalid route"
+
+msgid "Invalid route metric"
+msgstr "Invalid route metric"
+
+msgid "Invalid user name"
+msgstr "Invalid user name"
+
+msgid "Keep current system mode"
+msgstr "Keep current system mode"
+
+msgid "Keep existing"
+msgstr "Keep existing"
+
+msgid "Leave empty to allow roaming"
+msgstr "Leave empty to allow roaming"
+
+msgid "Leave empty to keep existing secrets"
+msgstr "Leave empty to keep existing secrets"
+
+msgid "Leave empty to keep the saved password"
+msgstr "Leave empty to keep the saved password"
+
+msgid "Length"
+msgstr "Length"
+
+msgid "Link-local"
+msgstr "Link-local"
+
+msgid "Lock session after"
+msgstr "Lock session after"
+
+msgid "MAC address"
+msgstr "MAC address"
+
+msgid "MTU (0 uses the default)"
+msgstr "MTU (0 uses the default)"
+
+msgid "Manual"
+msgstr "Manual"
+
+msgid "Manual IP configuration needs an address"
+msgstr "Manual IP configuration needs an address"
+
+msgid "Manual connection"
+msgstr "Manual connection"
+
+msgid "Maximize when a window is dragged to the top edge"
+msgstr "Maximize when a window is dragged to the top edge"
+
+msgid "Metered connection"
+msgstr "Metered connection"
+
+msgid "Mobile network APN"
+msgstr "Mobile network APN"
+
+msgid "Network is currently unavailable"
+msgstr "Network is currently unavailable"
+
+msgid "Network name (SSID)"
+msgstr "Network name (SSID)"
+
+msgid "Network operation queue is full. Try again."
+msgstr "Network operation queue is full. Try again."
+
+msgid "Network security"
+msgstr "Network security"
+
+msgid "Network security is not available yet. Refresh the list"
+msgstr "Network security is not available yet. Refresh the list"
+
+msgid "Network service has stopped. Reopen Settings."
+msgstr "Network service has stopped. Reopen Settings."
+
+msgid "Network settings"
+msgstr "Network settings"
+
+msgid "NetworkManager is unavailable"
+msgstr "NetworkManager is unavailable"
+
+msgid "Never"
+msgstr "Never"
+
+msgid "New connection"
+msgstr "New connection"
+
+msgid "No"
+msgstr "No"
+
+msgid "No credentials are available in this session"
+msgstr "No credentials are available in this session"
+
+msgid "No matching networks"
+msgstr "No matching networks"
+
+msgid "No saved network profiles"
+msgstr "No saved network profiles"
+
+msgid "Normal orientation"
+msgstr "Normal orientation"
+
+msgid "PAC URL"
+msgstr "PAC URL"
+
+msgid "PAC script"
+msgstr "PAC script"
+
+msgid "Panel"
+msgstr "Panel"
+
+msgid "Performance is limited"
+msgstr "Performance is limited"
+
+msgid "Power"
+msgstr "Power"
+
+msgid "Power actions control the computer in a dedicated RixDE session. Preview sessions only save preferences."
+msgstr "Power actions control the computer in a dedicated RixDE session. Preview sessions only save preferences."
+
+msgid "Power plan"
+msgstr "Power plan"
+
+msgid "Power settings saved"
+msgstr "Power settings saved"
+
+msgid "Preview opacity · "
+msgstr "Preview opacity · "
+
+msgid "Primary display"
+msgstr "Primary display"
+
+msgid "Private key"
+msgstr "Private key"
+
+msgid "Private key password"
+msgstr "Private key password"
+
+msgid "Proxy configuration"
+msgstr "Proxy configuration"
+
+msgid "Proxy method must be none or auto"
+msgstr "Proxy method must be none or auto"
+
+msgid "Put computer to sleep after"
+msgstr "Put computer to sleep after"
+
+msgid "Remove panel"
+msgstr "Remove panel"
+
+msgid "Reserve space for the panel"
+msgstr "Reserve space for the panel"
+
+msgid "RixDE decorates windows by default. Applications that request their own decorations keep them."
+msgstr "RixDE decorates windows by default. Applications that request their own decorations keep them."
+
+msgid "Rotate 180°"
+msgstr "Rotate 180°"
+
+msgid "Rotate 270°"
+msgstr "Rotate 270°"
+
+msgid "Rotate 90°"
+msgstr "Rotate 90°"
+
+msgid "Routes (destination/prefix gateway metric)"
+msgstr "Routes (destination/prefix gateway metric)"
+
+msgid "Routes use destination/prefix [gateway] [metric]"
+msgstr "Routes use destination/prefix [gateway] [metric]"
+
+msgid "SIM PIN"
+msgstr "SIM PIN"
+
+msgid "SSID must contain 1 to 32 bytes"
+msgstr "SSID must contain 1 to 32 bytes"
+
+msgid "Save and connect"
+msgstr "Save and connect"
+
+msgid "Saved network profiles could not be read"
+msgstr "Saved network profiles could not be read"
+
+msgid "Saved profiles"
+msgstr "Saved profiles"
+
+msgid "Saving…"
+msgstr "Saving…"
+
+msgid "Scale"
+msgstr "Scale"
+
+msgid "Scanning…"
+msgstr "Scanning…"
+
+msgid "Search networks"
+msgstr "Search networks"
+
+msgid "Security"
+msgstr "Security"
+
+msgid "Select a supported EAP method"
+msgstr "Select a supported EAP method"
+
+msgid "Separate multiple routes with semicolons. Leave gateway and DNS empty to use automatic values."
+msgstr "Separate multiple routes with semicolons. Leave gateway and DNS empty to use automatic values."
+
+msgid "Shared"
+msgstr "Shared"
+
+msgid "Sign in to network"
+msgstr "Sign in to network"
+
+msgid "Sleep action"
+msgstr "Sleep action"
+
+msgid "Suspend"
+msgstr "Suspend"
+
+msgid "Switch plan when running on battery"
+msgstr "Switch plan when running on battery"
+
+msgid "System mode"
+msgstr "System mode"
+
+msgid "The credential request was cancelled"
+msgstr "The credential request was cancelled"
+
+msgid "The network device firmware is missing"
+msgstr "The network device firmware is missing"
+
+msgid "The network device is not managed by NetworkManager"
+msgstr "The network device is not managed by NetworkManager"
+
+msgid "The session is locked before automatic sleep."
+msgstr "The session is locked before automatic sleep."
+
+msgid "Theme applied"
+msgstr "Theme applied"
+
+msgid "This connection keeps its existing authentication settings."
+msgstr "This connection keeps its existing authentication settings."
+
+msgid "This sleep action is unavailable on this system."
+msgstr "This sleep action is unavailable on this system."
+
+msgid "Too many pending credential requests"
+msgstr "Too many pending credential requests"
+
+msgid "Trigger area · "
+msgstr "Trigger area · "
+
+msgid "Turn off displays after"
+msgstr "Turn off displays after"
+
+msgid "Unavailable"
+msgstr "Unavailable"
+
+msgid "Unsupported Wi-Fi security mode"
+msgstr "Unsupported Wi-Fi security mode"
+
+msgid "Use English in RixDE and newly launched applications."
+msgstr "Use English in RixDE and newly launched applications."
+
+msgid "Use compositor window decorations"
+msgstr "Use compositor window decorations"
+
+msgid "Username"
+msgstr "Username"
+
+msgid "VPN / mobile"
+msgstr "VPN / mobile"
+
+msgid "VPN credentials: key=value or JSON"
+msgstr "VPN credentials: key=value or JSON"
+
+msgid "VPN options (JSON object)"
+msgstr "VPN options (JSON object)"
+
+msgid "VPN options depend on the installed NetworkManager plugin. You can import a provider configuration from the connection list."
+msgstr "VPN options depend on the installed NetworkManager plugin. You can import a provider configuration from the connection list."
+
+msgid "VPN plugin service"
+msgstr "VPN plugin service"
+
+msgid "VPN properties must be a JSON object of string values"
+msgstr "VPN properties must be a JSON object of string values"
+
+msgid "VPN properties use key=value lines"
+msgstr "VPN properties use key=value lines"
+
+msgid "VPN secrets (JSON object)"
+msgstr "VPN secrets (JSON object)"
+
+msgid "Vertical position"
+msgstr "Vertical position"
+
+msgid "WEP keys must contain 5 or 13 ASCII characters, or 10 or 26 hexadecimal digits"
+msgstr "WEP keys must contain 5 or 13 ASCII characters, or 10 or 26 hexadecimal digits"
+
+msgid "WPA passwords require 8 to 63 bytes, or 64 hexadecimal digits"
+msgstr "WPA passwords require 8 to 63 bytes, or 64 hexadecimal digits"
+
+msgid "WPA2 passwords must contain 8 to 63 ASCII characters or 64 hexadecimal digits"
+msgstr "WPA2 passwords must contain 8 to 63 ASCII characters or 64 hexadecimal digits"
+
+msgid "Wi-Fi band"
+msgstr "Wi-Fi band"
+
+msgid "Wi-Fi is blocked or no adapter is available"
+msgstr "Wi-Fi is blocked or no adapter is available"
+
+msgid "Wi-Fi power saving"
+msgstr "Wi-Fi power saving"
+
+msgid "Window decorations"
+msgstr "Window decorations"
+
+msgid "Window snapping"
+msgstr "Window snapping"
+
+msgid "Yes"
+msgstr "Yes"
+
+msgid "Configuration file path"
+msgstr "Configuration file path"
+
+msgid "Import"
+msgstr "Import"
+
+msgid "Import a NetworkManager connection or VPN provider file"
+msgstr "Import a NetworkManager connection or VPN provider file"
+
+msgid "Import connection…"
+msgstr "Import connection…"
+
+msgid "Importing…"
+msgstr "Importing…"
+
+msgid "Connection type"
+msgstr "Connection type"
+
+msgid "Mobile network"
+msgstr "Mobile network"
+
+
+msgid "A network address is already in use"
+msgstr "A network address is already in use"
+
+msgid "A network operation is already in progress. Wait for it to finish"
+msgstr "A network operation is already in progress. Wait for it to finish"
+
+msgid "Connect to this network?"
+msgstr "Connect to this network?"
+
+msgid "Connecting and disconnecting are denied by system policy"
+msgstr "Connecting and disconnecting are denied by system policy"
+
+msgid "Could not convert the imported connection settings"
+msgstr "Could not convert the imported connection settings"
+
+msgid "Could not open the network sign-in page"
+msgstr "Could not open the network sign-in page"
+
+msgid "Edit this profile to change its credentials"
+msgstr "Edit this profile to change its credentials"
+
+msgid "Editing network profiles is denied by system policy"
+msgstr "Editing network profiles is denied by system policy"
+
+msgid "Enable networking"
+msgstr "Enable networking"
+
+msgid "Enter the SIM PIN to connect"
+msgstr "Enter the SIM PIN to connect"
+
+msgid "Imported connection settings are nested too deeply"
+msgstr "Imported connection settings are nested too deeply"
+
+msgid "Insert a SIM card to connect"
+msgstr "Insert a SIM card to connect"
+
+msgid "Install libnm to import NetworkManager connection files"
+msgstr "Install libnm to import NetworkManager connection files"
+
+msgid "Install nmcli and the appropriate VPN plugin to import this file"
+msgstr "Install nmcli and the appropriate VPN plugin to import this file"
+
+msgid "Internet connectivity is unknown"
+msgstr "Internet connectivity is unknown"
+
+msgid "Invalid imported object path"
+msgstr "Invalid imported object path"
+
+msgid "Invalid imported property name"
+msgstr "Invalid imported property name"
+
+msgid "Invalid imported property value"
+msgstr "Invalid imported property value"
+
+msgid "Invalid imported setting name"
+msgstr "Invalid imported setting name"
+
+msgid "Invalid imported signature"
+msgstr "Invalid imported signature"
+
+msgid "ModemManager is not available"
+msgstr "ModemManager is not available"
+
+msgid "Network authentication failed"
+msgstr "Network authentication failed"
+
+msgid "Network credential response could not be delivered. Try again."
+msgstr "Network credential response could not be delivered. Try again."
+
+msgid "Network password agent is unavailable"
+msgstr "Network password agent is unavailable"
+
+msgid "NetworkManager connection files must use UTF-8"
+msgstr "NetworkManager connection files must use UTF-8"
+
+msgid "NetworkManager is unavailable. Start the service before changing network settings"
+msgstr "NetworkManager is unavailable. Start the service before changing network settings"
+
+msgid "NetworkManager keyfile import requires libnm 1.30 or newer"
+msgstr "NetworkManager keyfile import requires libnm 1.30 or newer"
+
+msgid "NetworkManager rejected the request. Check the adapter and network profile settings"
+msgstr "NetworkManager rejected the request. Check the adapter and network profile settings"
+
+msgid "NetworkManager timed out. The operation may still be finishing"
+msgstr "NetworkManager timed out. The operation may still be finishing"
+
+msgid "Networking"
+msgstr "Networking"
+
+msgid "Networking is disabled"
+msgstr "Networking is disabled"
+
+msgid "No Wi-Fi adapter is available"
+msgstr "No Wi-Fi adapter is available"
+
+msgid "No available Wi-Fi adapter"
+msgstr "No available Wi-Fi adapter"
+
+msgid "Only NetworkManager may request network credentials"
+msgstr "Only NetworkManager may request network credentials"
+
+msgid "Permission to change network settings was denied"
+msgstr "Permission to change network settings was denied"
+
+msgid "Select a supported VPN import type"
+msgstr "Select a supported VPN import type"
+
+msgid "The NetworkManager connection file is not valid"
+msgstr "The NetworkManager connection file is not valid"
+
+msgid "The NetworkManager connection settings are not valid"
+msgstr "The NetworkManager connection settings are not valid"
+
+msgid "The SIM PIN was rejected"
+msgstr "The SIM PIN was rejected"
+
+msgid "The SIM requires a PUK code"
+msgstr "The SIM requires a PUK code"
+
+msgid "The VPN file could not be imported. Check its format and the installed NetworkManager plugin"
+msgstr "The VPN file could not be imported. Check its format and the installed NetworkManager plugin"
+
+msgid "The Wi-Fi network was not found"
+msgstr "The Wi-Fi network was not found"
+
+msgid "The connection timed out. Check the network credentials and availability"
+msgstr "The connection timed out. Check the network credentials and availability"
+
+msgid "The import file could not be read"
+msgstr "The import file could not be read"
+
+msgid "The import file must be a regular file no larger than 1 MiB"
+msgstr "The import file must be a regular file no larger than 1 MiB"
+
+msgid "The import path has no parent"
+msgstr "The import path has no parent"
+
+msgid "The imported connection contains an unsupported property type"
+msgstr "The imported connection contains an unsupported property type"
+
+msgid "The mobile network APN was rejected"
+msgstr "The mobile network APN was rejected"
+
+msgid "The mobile network registration was denied"
+msgstr "The mobile network registration was denied"
+
+msgid "The network IP configuration expired"
+msgstr "The network IP configuration expired"
+
+msgid "The network configuration is unavailable"
+msgstr "The network configuration is unavailable"
+
+msgid "The network connection ended before it became active"
+msgstr "The network connection ended before it became active"
+
+msgid "The network connection failed"
+msgstr "The network connection failed"
+
+msgid "The network connection failed. Open the network settings to check its configuration"
+msgstr "The network connection failed. Open the network settings to check its configuration"
+
+msgid "The network connection was cancelled"
+msgstr "The network connection was cancelled"
+
+msgid "The network device was removed"
+msgstr "The network device was removed"
+
+msgid "The network did not provide an IP address"
+msgstr "The network did not provide an IP address"
+
+msgid "The network did not provide an IP address (DHCP)"
+msgstr "The network did not provide an IP address (DHCP)"
+
+msgid "The network import could not be completed"
+msgstr "The network import could not be completed"
+
+msgid "The network password or credentials are missing"
+msgstr "The network password or credentials are missing"
+
+msgid "The saved credentials were rejected. Enter new credentials"
+msgstr "The saved credentials were rejected. Enter new credentials"
+
+msgid "The saved network profile was removed"
+msgstr "The saved network profile was removed"
+
+msgid "The saved profile is no longer available"
+msgstr "The saved profile is no longer available"
+
+msgid "The selected network adapter is no longer available"
+msgstr "The selected network adapter is no longer available"
+
+msgid "This IP configuration method is not supported"
+msgstr "This IP configuration method is not supported"
+
+msgid "This adapter does not support creating a Wi-Fi hotspot"
+msgstr "This adapter does not support creating a Wi-Fi hotspot"
+
+msgid "This network device is unavailable. Check Wi-Fi, radio blocking and device settings"
+msgstr "This network device is unavailable. Check Wi-Fi, radio blocking and device settings"
+
+msgid "This network is no longer available. Refresh the list"
+msgstr "This network is no longer available. Refresh the list"
+
+msgid "This network needs credentials to connect"
+msgstr "This network needs credentials to connect"
+
+msgid "This password request has expired"
+msgstr "This password request has expired"
+
+msgid "Turn on Wi-Fi before scanning"
+msgstr "Turn on Wi-Fi before scanning"
+
+msgid "WPA Enterprise"
+msgstr "WPA Enterprise"
+
+msgid "Wi-Fi adapters are unmanaged"
+msgstr "Wi-Fi adapters are unmanaged"
+
+msgid "Wi-Fi authentication failed. Check the password and security settings"
+msgstr "Wi-Fi authentication failed. Check the password and security settings"
+
+msgid "Wi-Fi is blocked by hardware"
+msgstr "Wi-Fi is blocked by hardware"
+
+msgid "Wi-Fi is busy scanning. Wait a moment before refreshing again"
+msgstr "Wi-Fi is busy scanning. Wait a moment before refreshing again"
+
+msgid "Wi-Fi switching is denied by system policy"
+msgstr "Wi-Fi switching is denied by system policy"
+
+msgid "Passwords and keys"
+msgstr "Passwords and keys"
+
+msgid "Encrypted passwords, application tokens and keys"
+msgstr "Encrypted passwords, application tokens and keys"
+
+msgid "Current session provider: "
+msgstr "Current session provider: "
+
+msgid "Open Clavis"
+msgstr "Open Clavis"
+
+msgid "Clavis integrates with applications that use Secret Service and the Secret portal. Existing browser encryption keys remain in their current provider until explicitly migrated."
+msgstr "Clavis integrates with applications that use Secret Service and the Secret portal. Existing browser encryption keys remain in their current provider until explicitly migrated."
+
+msgid "Clavis is not installed or could not be opened"
+msgstr "Clavis is not installed or could not be opened"
+
+msgid "No unlocked saved credentials are available"
+msgstr "No unlocked saved credentials are available"
+
+msgid "Open with"
+msgstr "Open with"
+
+msgid "Open"
+msgstr "Open"
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Search applications…"
+msgstr "Search applications…"
+
+msgid "Default"
+msgstr "Default"
+
+msgid "No matching applications"
+msgstr "No matching applications"
+
+msgid "Recommended applications"
+msgstr "Recommended applications"
+
+msgid "All applications"
+msgstr "All applications"
+
+msgid "Always use for this file type"
+msgstr "Always use for this file type"
+
+msgid "Supports this file type"
+msgstr "Supports this file type"
+
+msgid "Other application"
+msgstr "Other application"
+
+msgid "Change…"
+msgstr "Change…"
+
+msgid "Other file type"
+msgstr "Other file type"
+
+msgid "MIME type, for example application/pdf"
+msgstr "MIME type, for example application/pdf"
+
+msgid "Choose application…"
+msgstr "Choose application…"
+
+msgid "Loading applications…"
+msgstr "Loading applications…"
+
+msgid "Choose default application"
+msgstr "Choose default application"
+
+msgid "Set as default"
+msgstr "Set as default"
+
+msgid "Enter a valid MIME type, for example application/pdf"
+msgstr "Enter a valid MIME type, for example application/pdf"
+
+msgid "PDF viewer"
+msgstr "PDF viewer"
+
+msgid "PDF documents"
+msgstr "PDF documents"
+
+msgid "Audio player"
+msgstr "Audio player"
+
+msgid "Music and audio files"
+msgstr "Music and audio files"
+
+msgid "Archive manager"
+msgstr "Archive manager"
+
+msgid "ZIP, TAR and compressed archives"
+msgstr "ZIP, TAR and compressed archives"
+
+msgid "Choose an application"
+msgstr "Choose an application"
+
+msgid "Setting the default application…"
+msgstr "Setting the default application…"
+
+msgid "Default application saved"
+msgstr "Default application saved"
+
+msgid "Could not set the default application"
+msgstr "Could not set the default application"
+
+
+msgid "Secret Service"
+msgstr "Secret Service"
+
+
+msgid "Provider for the next login: "
+msgstr "Provider for the next login: "
+
+
+msgid "Install this provider before selecting it"
+msgstr "Install this provider before selecting it"
+
+
+msgid "Keep automatic provider selection"
+msgstr "Keep automatic provider selection"
+
+
+msgid "Do not start a password provider in RixDE"
+msgstr "Do not start a password provider in RixDE"
+
+
+msgid "Use this provider after the next login"
+msgstr "Use this provider after the next login"
+
+
+msgid "Saved. The provider changes after the next login; open applications keep their current storage."
+msgstr "Saved. The provider changes after the next login; open applications keep their current storage."
+
+msgid "Download"
+msgstr "Download"
+
+msgid "Upload"
+msgstr "Upload"
+
+msgid "B/s"
+msgstr "B/s"
+
+msgid "KiB/s"
+msgstr "KiB/s"
+
+msgid "MiB/s"
+msgstr "MiB/s"
+
+msgid "GiB/s"
+msgstr "GiB/s"
+
+msgid "Ethernet"
+msgstr "Ethernet"
+
+msgid "Restart"
+msgstr "Restart"
+
+msgid "Shut down"
+msgstr "Shut down"
+
+msgid "Log out"
+msgstr "Log out"
+
+msgid "Are you sure you want to restart the computer?"
+msgstr "Are you sure you want to restart the computer?"
+
+msgid "Are you sure you want to shut down the computer?"
+msgstr "Are you sure you want to shut down the computer?"
+
+msgid "Are you sure you want to log out of the current session?"
+msgstr "Are you sure you want to log out of the current session?"

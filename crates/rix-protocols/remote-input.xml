@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="rix_remote_input_v1">
+  <copyright>Copyright 2026 RixDe contributors. SPDX-License-Identifier: MIT</copyright>
+  <interface name="rix_remote_input_manager_v1" version="1">
+    <description summary="Permissioned native seat input">
+      Only an explicitly enabled remote-input extension can bind this global
+      through its inherited private Wayland connection. The extension must obtain
+      local RemoteDesktop consent before creating a session. Ordinary clients and
+      login displays never receive this global. Session locking revokes sessions.
+    </description>
+    <request name="destroy" type="destructor"/>
+    <request name="create_session">
+      <arg name="session" type="new_id" interface="rix_remote_input_session_v1"/>
+    </request>
+  </interface>
+  <interface name="rix_remote_input_session_v1" version="1">
+    <description summary="Remote input owned by one consented session">
+      Input is processed through the compositor seat. Keys and buttons held by
+      this session are released when the session is destroyed, disconnected, or
+      revoked, without releasing input held by local devices or other sessions.
+      Closed sessions are inert and must be destroyed. Motion coordinates and
+      deltas are in logical compositor coordinates. Linux evdev codes are used.
+    </description>
+    <enum name="close_reason">
+      <entry name="revoked" value="0" summary="permission was revoked"/>
+      <entry name="locked" value="1" summary="session is locked"/>
+      <entry name="limit" value="2" summary="session or input rate limit reached"/>
+      <entry name="unsupported" value="3" summary="input cannot be represented safely"/>
+    </enum>
+    <request name="destroy" type="destructor"/>
+    <request name="keycode"><arg name="code" type="uint"/><arg name="state" type="uint" summary="0 release, 1 press"/></request>
+    <request name="keysym"><arg name="sym" type="uint"/><arg name="state" type="uint" summary="0 release, 1 press"/></request>
+    <request name="motion"><arg name="dx" type="fixed"/><arg name="dy" type="fixed"/></request>
+    <request name="motion_absolute"><arg name="x" type="fixed"/><arg name="y" type="fixed"/></request>
+    <request name="button"><arg name="button" type="uint"/><arg name="state" type="uint" summary="0 release, 1 press"/></request>
+    <request name="axis"><arg name="dx" type="fixed"/><arg name="dy" type="fixed"/></request>
+    <request name="axis_discrete"><arg name="axis" type="uint" summary="0 vertical, 1 horizontal"/><arg name="steps" type="int"/></request>
+    <event name="unsupported_keysym">
+      <description summary="Symbol cannot be represented by the active keymap">
+        The rejected symbol was not injected. The session remains active. A
+        client must report this failure to its caller rather than claim success.
+        Other keys, physical input, and the keyboard map remain unchanged.
+      </description>
+      <arg name="sym" type="uint"/>
+    </event>
+    <event name="closed"><arg name="reason" type="uint" enum="close_reason"/></event>
+  </interface>
+</protocol>

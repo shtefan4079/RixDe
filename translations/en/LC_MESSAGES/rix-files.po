@@ -1,0 +1,734 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Rix Files 0.1\n"
+"PO-Revision-Date: 2026-10-06 00:00+0000\n"
+"Last-Translator: RixDE Contributors\n"
+"Language-Team: en\n"
+"MIME-Version: 1.0\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: en\n"
+
+msgid "Back"
+msgstr "Back"
+
+msgid "Forward"
+msgstr "Forward"
+
+msgid "Up"
+msgstr "Up"
+
+msgid "Location"
+msgstr "Location"
+
+msgid "Options"
+msgstr "Options"
+
+msgid "Close tab"
+msgstr "Close tab"
+
+msgid "Bookmark folder"
+msgstr "Bookmark folder"
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Close"
+msgstr "Close"
+
+msgid "Confirm"
+msgstr "Confirm"
+
+msgid "Copy"
+msgstr "Copy"
+
+msgid "Cut"
+msgstr "Cut"
+
+msgid "Delete permanently"
+msgstr "Delete permanently"
+
+msgid "Delete permanently…"
+msgstr "Delete permanently…"
+
+msgid "Empty Trash"
+msgstr "Empty Trash"
+
+msgid "Empty Trash?"
+msgstr "Empty Trash?"
+
+msgid "Grid"
+msgstr "Grid"
+
+msgid "List"
+msgstr "List"
+
+msgid "Loading…"
+msgstr "Loading…"
+
+msgid "Modified"
+msgstr "Modified"
+
+msgid "Move to trash"
+msgstr "Move to trash"
+
+msgid "Name"
+msgstr "Name"
+
+msgid "New folder"
+msgstr "New folder"
+
+msgid "New tab"
+msgstr "New tab"
+
+msgid "Open"
+msgstr "Open"
+
+msgid "Open terminal"
+msgstr "Open terminal"
+
+msgid "Open terminal here"
+msgstr "Open terminal here"
+
+msgid "Open with…"
+msgstr "Open with…"
+
+msgid "PLACES"
+msgstr "PLACES"
+
+msgid "Paste"
+msgstr "Paste"
+
+msgid "Properties"
+msgstr "Properties"
+
+msgid "Refresh"
+msgstr "Refresh"
+
+msgid "Rename…"
+msgstr "Rename…"
+
+msgid "Restore"
+msgstr "Restore"
+
+msgid "Search this folder…"
+msgstr "Search this folder…"
+
+msgid "Show hidden files"
+msgstr "Show hidden files"
+
+msgid "Size"
+msgstr "Size"
+
+msgid "Trash"
+msgstr "Trash"
+
+msgid "Type"
+msgstr "Type"
+
+msgid "Home"
+msgstr "Home"
+
+msgid "Desktop"
+msgstr "Desktop"
+
+msgid "Documents"
+msgstr "Documents"
+
+msgid "Downloads"
+msgstr "Downloads"
+
+msgid "Pictures"
+msgstr "Pictures"
+
+msgid "Music"
+msgstr "Music"
+
+msgid "Videos"
+msgstr "Videos"
+
+msgid "Filesystem"
+msgstr "Filesystem"
+
+msgid "Folder"
+msgstr "Folder"
+
+msgid "File"
+msgstr "File"
+
+msgid "Symbolic link"
+msgstr "Symbolic link"
+
+msgid "{extension} file"
+msgstr "{extension} file"
+
+msgid "This folder is empty"
+msgstr "This folder is empty"
+
+msgid "No matching files"
+msgstr "No matching files"
+
+msgid "{count} items · {selected} selected"
+msgstr "{count} items · {selected} selected"
+
+msgid " · search limited to 10,000 results"
+msgstr " · search limited to 10,000 results"
+
+msgid "Preparing…"
+msgstr "Preparing…"
+
+msgid "Copying {name}"
+msgstr "Copying {name}"
+
+msgid "{count} files cut · existing files will be kept when pasting"
+msgstr "{count} files cut · existing files will be kept when pasting"
+
+msgid "{count} files copied · existing files will be kept when pasting"
+msgstr "{count} files copied · existing files will be kept when pasting"
+
+msgid "Delete permanently?"
+msgstr "Delete permanently?"
+
+msgid "Delete {count} selected item(s)? This action cannot be undone."
+msgstr "Delete {count} selected item(s)? This action cannot be undone."
+
+msgid "Permanently delete all {count} item(s) in the Trash? This action cannot be undone."
+msgstr "Permanently delete all {count} item(s) in the Trash? This action cannot be undone."
+
+msgid "Trash is already empty"
+msgstr "Trash is already empty"
+
+msgid "Rename"
+msgstr "Rename"
+
+msgid "Existing files will not be replaced."
+msgstr "Existing files will not be replaced."
+
+msgid "Enter a folder name."
+msgstr "Enter a folder name."
+
+msgid "Bookmark removed"
+msgstr "Bookmark removed"
+
+msgid "Folder bookmarked"
+msgstr "Folder bookmarked"
+
+msgid "Cancelling after the current safe step…"
+msgstr "Cancelling after the current safe step…"
+
+msgid "{completed} completed · {skipped} skipped"
+msgstr "{completed} completed · {skipped} skipped"
+
+msgid " · cancelled"
+msgstr " · cancelled"
+
+msgid "Open with"
+msgstr "Open with"
+
+msgid "Choose an installed application."
+msgstr "Choose an installed application."
+
+msgid "Could not complete action"
+msgstr "Could not complete action"
+
+msgid "No installed application declares support for this file type"
+msgstr "No installed application declares support for this file type"
+
+msgid "Restore this item before opening it"
+msgstr "Restore this item before opening it"
+
+msgid "Restore trashed files before copying them"
+msgstr "Restore trashed files before copying them"
+
+msgid "Up to 12 tabs can be open; close a tab to add another"
+msgstr "Up to 12 tabs can be open; close a tab to add another"
+
+msgid "Folder contents excluded"
+msgstr "Folder contents excluded"
+
+msgid "Permissions"
+msgstr "Permissions"
+
+msgid "Owner ID"
+msgstr "Owner ID"
+
+msgid "Group ID"
+msgstr "Group ID"
+
+msgid "Link target"
+msgstr "Link target"
+
+msgid "Socket"
+msgstr "Socket"
+
+msgid "FIFO"
+msgstr "FIFO"
+
+msgid "Block device"
+msgstr "Block device"
+
+msgid "Character device"
+msgstr "Character device"
+
+msgid "Unknown"
+msgstr "Unknown"
+
+msgid "Deleted"
+msgstr "Deleted"
+
+msgid "Places"
+msgstr "Places"
+
+msgid "Bookmarks"
+msgstr "Bookmarks"
+
+msgid "Tabs"
+msgstr "Tabs"
+
+msgid "Folder contents"
+msgstr "Folder contents"
+
+msgid "File actions"
+msgstr "File actions"
+
+msgid "Folder actions"
+msgstr "Folder actions"
+
+msgid "Place actions"
+msgstr "Place actions"
+
+msgid "Unpin from Places"
+msgstr "Unpin from Places"
+
+msgid "Restore default Places"
+msgstr "Restore default Places"
+
+msgid "New file"
+msgstr "New file"
+
+msgid "Create"
+msgstr "Create"
+
+msgid "Enter a file name."
+msgstr "Enter a file name."
+
+msgid "Disk"
+msgstr "Disk"
+
+msgid "System disk"
+msgstr "System disk"
+
+msgid "Disk · {name}"
+msgstr "Disk · {name}"
+
+msgid "Disk storage"
+msgstr "Disk storage"
+
+msgid "{free} free of {total}"
+msgstr "{free} free of {total}"
+
+msgid "Reading disk usage…"
+msgstr "Reading disk usage…"
+
+msgid "Disk usage unavailable"
+msgstr "Disk usage unavailable"
+
+msgid "Search applications…"
+msgstr "Search applications…"
+
+msgid "Default"
+msgstr "Default"
+
+msgid "No matching applications"
+msgstr "No matching applications"
+
+msgid "Recommended applications"
+msgstr "Recommended applications"
+
+msgid "All applications"
+msgstr "All applications"
+
+msgid "Always use for this file type"
+msgstr "Always use for this file type"
+
+msgid "Supports this file type"
+msgstr "Supports this file type"
+
+msgid "Other application"
+msgstr "Other application"
+
+msgid "Change…"
+msgstr "Change…"
+
+msgid "Other file type"
+msgstr "Other file type"
+
+msgid "MIME type, for example application/pdf"
+msgstr "MIME type, for example application/pdf"
+
+msgid "Choose application…"
+msgstr "Choose application…"
+
+msgid "Loading applications…"
+msgstr "Loading applications…"
+
+msgid "Choose default application"
+msgstr "Choose default application"
+
+msgid "Set as default"
+msgstr "Set as default"
+
+msgid "Enter a valid MIME type, for example application/pdf"
+msgstr "Enter a valid MIME type, for example application/pdf"
+
+msgid "PDF viewer"
+msgstr "PDF viewer"
+
+msgid "PDF documents"
+msgstr "PDF documents"
+
+msgid "Audio player"
+msgstr "Audio player"
+
+msgid "Music and audio files"
+msgstr "Music and audio files"
+
+msgid "Archive manager"
+msgstr "Archive manager"
+
+msgid "ZIP, TAR and compressed archives"
+msgstr "ZIP, TAR and compressed archives"
+
+msgid "Choose an application"
+msgstr "Choose an application"
+
+msgid "Setting the default application…"
+msgstr "Setting the default application…"
+
+msgid "Default application saved"
+msgstr "Default application saved"
+
+msgid "Could not set the default application"
+msgstr "Could not set the default application"
+
+msgid "Preview"
+msgstr "Preview"
+
+msgid "Copy path"
+msgstr "Copy path"
+
+msgid "Path copied"
+msgstr "Path copied"
+
+msgid "Archive"
+msgstr "Archive"
+
+msgid "Extract…"
+msgstr "Extract…"
+
+msgid "Archive password"
+msgstr "Archive password"
+
+msgid "Unlock"
+msgstr "Unlock"
+
+msgid "Reading archive…"
+msgstr "Reading archive…"
+
+msgid "File name"
+msgstr "File name"
+
+msgid "File type"
+msgstr "File type"
+
+msgid "No"
+msgstr "No"
+
+msgid "Yes"
+msgstr "Yes"
+
+msgid "Save"
+msgstr "Save"
+
+msgid "Open file"
+msgstr "Open file"
+
+msgid "Save file"
+msgstr "Save file"
+
+msgid "Choose a folder"
+msgstr "Choose a folder"
+
+msgid "Choose one or more files"
+msgstr "Choose one or more files"
+
+msgid "Choose a file"
+msgstr "Choose a file"
+
+msgid "Replace existing file?"
+msgstr "Replace existing file?"
+
+msgid "The selected destination already exists. Allow the application to replace it?"
+msgstr "The selected destination already exists. Allow the application to replace it?"
+
+msgid "Extract archive"
+msgstr "Extract archive"
+
+msgid "A new folder will be created. Existing files will be preserved."
+msgstr "A new folder will be created. Existing files will be preserved."
+
+msgid "Preview shows the beginning of this file"
+msgstr "Preview shows the beginning of this file"
+
+msgid "Document text preview; original page layout is not reproduced"
+msgstr "Document text preview; original page layout is not reproduced"
+
+msgid "No built-in viewer for this format; a binary preview is shown"
+msgstr "No built-in viewer for this format; a binary preview is shown"
+
+msgid "Some text could not be decoded"
+msgstr "Some text could not be decoded"
+
+msgid "Preview resolution was limited for this large page"
+msgstr "Preview resolution was limited for this large page"
+
+msgid "No matches"
+msgstr "No matches"
+
+msgid "{count} selected files"
+msgstr "{count} selected files"
+
+msgid "Close Preview"
+msgstr "Close Preview"
+
+msgid "Close Search"
+msgstr "Close Search"
+
+msgid "Document Text"
+msgstr "Document Text"
+
+msgid "Find in Document"
+msgstr "Find in Document"
+
+msgid "Find"
+msgstr "Find"
+
+msgid "Fit"
+msgstr "Fit"
+
+msgid "Loading Preview…"
+msgstr "Loading Preview…"
+
+msgid "Next Match"
+msgstr "Next Match"
+
+msgid "Next Page"
+msgstr "Next Page"
+
+msgid "Page {0} of {1}"
+msgstr "Page {0} of {1}"
+
+msgid "Preview Unavailable"
+msgstr "Preview Unavailable"
+
+msgid "Previous Match"
+msgstr "Previous Match"
+
+msgid "Previous Page"
+msgstr "Previous Page"
+
+msgid "Zoom In"
+msgstr "Zoom In"
+
+msgid "Zoom Out"
+msgstr "Zoom Out"
+
+msgid "Open With…"
+msgstr "Open With…"
+
+msgid "Select All"
+msgstr "Select All"
+
+msgid "Password…"
+msgstr "Password…"
+
+msgid "Choose where to save the file"
+msgstr "Choose where to save the file"
+
+msgid "PDF document"
+msgstr "PDF document"
+
+msgid "Image"
+msgstr "Image"
+
+msgid "Text file"
+msgstr "Text file"
+
+msgid "Document"
+msgstr "Document"
+
+msgid "Binary file"
+msgstr "Binary file"
+
+msgid "Extract the archive to open this file in another application"
+msgstr "Extract the archive to open this file in another application"
+
+msgid "Undo"
+msgstr "Undo"
+
+msgid "Redo"
+msgstr "Redo"
+
+msgid "Nothing to undo"
+msgstr "Nothing to undo"
+
+msgid "Nothing to redo"
+msgstr "Nothing to redo"
+
+msgid "Undoing operation…"
+msgstr "Undoing operation…"
+
+msgid "Redoing operation…"
+msgstr "Redoing operation…"
+
+msgid "Operation undone"
+msgstr "Operation undone"
+
+msgid "Operation redone"
+msgstr "Operation redone"
+
+msgid "Full path"
+msgstr "Full path"
+
+msgid "Copy paths"
+msgstr "Copy paths"
+
+msgid "Size on disk"
+msgstr "Size on disk"
+
+msgid "Contents"
+msgstr "Contents"
+
+msgid "Accessed"
+msgstr "Accessed"
+
+msgid "Created"
+msgstr "Created"
+
+msgid "Mode"
+msgstr "Mode"
+
+msgid "Read"
+msgstr "Read"
+
+msgid "Write"
+msgstr "Write"
+
+msgid "Execute"
+msgstr "Execute"
+
+msgid "Allowed"
+msgstr "Allowed"
+
+msgid "Not allowed"
+msgstr "Not allowed"
+
+msgid "Owner"
+msgstr "Owner"
+
+msgid "Group"
+msgstr "Group"
+
+msgid "Others"
+msgstr "Others"
+
+msgid "Unavailable"
+msgstr "Unavailable"
+
+msgid "Varies"
+msgstr "Varies"
+
+msgid "Mixed types"
+msgstr "Mixed types"
+
+msgid "Multiple locations"
+msgstr "Multiple locations"
+
+msgid "Original location"
+msgstr "Original location"
+
+msgid "{size} ({bytes} bytes)"
+msgstr "{size} ({bytes} bytes)"
+
+msgid "{count} selected items"
+msgstr "{count} selected items"
+
+msgid "Calculating…"
+msgstr "Calculating…"
+
+msgid "{files} files and links · {folders} folders"
+msgstr "{files} files and links · {folders} folders"
+
+msgid "Some items could not be read. Sizes and counts are partial."
+msgstr "Some items could not be read. Sizes and counts are partial."
+
+msgid "Large folder: sizes and counts shown so far. Counting stopped to keep the app responsive."
+msgstr "Large folder: sizes and counts shown so far. Counting stopped to keep the app responsive."
+
+msgid "Counting folder contents… Symbolic links are not followed."
+msgstr "Counting folder contents… Symbolic links are not followed."
+
+msgid "Symbolic links are not followed."
+msgstr "Symbolic links are not followed."
+
+msgid "Access to a symbolic link depends on its target and parent folders."
+msgstr "Access to a symbolic link depends on its target and parent folders."
+
+msgid "Permissions vary between selected items."
+msgstr "Permissions vary between selected items."
+
+msgid "These are the Unix mode permissions. Access can also depend on ACLs and parent folders."
+msgstr "These are the Unix mode permissions. Access can also depend on ACLs and parent folders."
+
+msgid " · search limited by time"
+msgstr " · search limited by time"
+
+msgid "{count} skipped"
+msgstr "{count} skipped"
+
+msgid "Close other tabs"
+msgstr "Close other tabs"
+
+msgid "Close tabs to the right"
+msgstr "Close tabs to the right"
+
+msgid "Collapse sidebar"
+msgstr "Collapse sidebar"
+
+msgid "Copy mount path"
+msgstr "Copy mount path"
+
+msgid "Dates"
+msgstr "Dates"
+
+msgid "Details"
+msgstr "Details"
+
+msgid "Disk actions"
+msgstr "Disk actions"
+
+msgid "Duplicate tab"
+msgstr "Duplicate tab"
+
+msgid "Open in new tab"
+msgstr "Open in new tab"
+
+msgid "Show sidebar"
+msgstr "Show sidebar"
+
+msgid "Tab actions"
+msgstr "Tab actions"
+
+msgid "free"
+msgstr "free"
+

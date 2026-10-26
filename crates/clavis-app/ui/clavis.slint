@@ -1,0 +1,232 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { ThemeFrame } from "../../../ui/common/frame.slint";
+import { LineEdit } from "../../../ui/common/line_edit.slint";
+import { ScrollView } from "std-widgets.slint";
+export { Theme } from "../../../ui/common/theme.slint";
+export { Palette } from "std-widgets.slint";
+export { SkinRenderer, SkinFrame } from "../../../ui/common/frame.slint";
+
+export struct VaultRow { path: string, label: string, state: string, locked: bool, default-vault: bool }
+export struct CredentialRow { path: string, label: string, application: string, attributes: string, modified: string }
+
+component Action inherits Rectangle {
+    in property <string> text;
+    in property <bool> enabled: true;
+    in property <bool> primary;
+    callback clicked();
+    min-height: 38px; preferred-height: 38px;
+    min-width: 92px; preferred-width: label.preferred-width + 28px;
+    horizontal-stretch: 0; vertical-stretch: 0;
+    border-radius: Theme.radius-sm;
+    border-width: 1px; border-color: root.primary || keys.has-focus ? Theme.accent : Theme.control-border;
+    background: root.primary ? Theme.surface-active : touch.has-hover || keys.has-focus ? Theme.surface-hover : Theme.control-surface;
+    opacity: root.enabled ? 1 : 0.4;
+    accessible-role: button; accessible-label: root.text; accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.clicked(); } }
+    forward-focus: keys;
+    label := Text { text: root.text; color: Theme.text-primary; vertical-alignment: center; horizontal-alignment: center; }
+    keys := FocusScope { enabled: root.enabled; key-pressed(e) => { if e.text == Key.Return || e.text == " " { root.clicked(); return accept; } reject } }
+    touch := TouchArea { enabled: root.enabled; mouse-cursor: pointer; clicked => { keys.focus(); root.clicked(); } }
+}
+
+component Material inherits Rectangle {
+    background: Theme.panel-frame.available ? transparent : @linear-gradient(180deg, Theme.glass-start 0%, Theme.glass-end 100%);
+    if Theme.panel-frame.available: ThemeFrame { width: parent.width; height: parent.height; skin: Theme.panel-frame; material-opacity: Theme.material-opacity; corner-radius: 0px; }
+    @children
+}
+
+export component VaultWindow inherits Window {
+    title: "Clavis";
+    background: transparent;
+    default-font-family: Theme.font-family; default-font-size: Theme.font-size-md;
+    preferred-width: 1020px; preferred-height: 700px; min-width: 820px; min-height: 520px;
+    in property <[VaultRow]> vaults;
+    in property <[CredentialRow]> credentials;
+    in-out property <int> selected-vault: -1;
+    in-out property <int> selected-item: -1;
+    in property <bool> locked: true;
+    in property <bool> busy;
+    in property <string> status;
+    in-out property <string> search;
+    in-out property <string> revealed;
+    private property <int> dialog-kind;
+    in-out property <string> new-label;
+    in-out property <string> new-application;
+    in-out property <string> new-key;
+    in-out property <string> new-secret;
+    callback select-vault(int); callback select-item(int); callback refresh();
+    callback unlock(); callback lock-all(); callback change-password(); callback reveal(); callback delete-item();
+    callback create-vault(string); callback save-item(string,string,string,string); callback backup();
+    changed search => { root.refresh(); }
+    function close-dialog() { root.dialog-kind = 0; root.new-secret = ""; }
+    public function clear-secret() { root.revealed = ""; root.new-secret = ""; }
+    Material {
+        width: parent.width; height: parent.height;
+        VerticalLayout {
+            spacing: 0px;
+            HorizontalLayout {
+                padding: 20px; spacing: 14px; height: 86px;
+                Rectangle { width: 44px; height: 44px; border-radius: Theme.radius-md; background: Theme.surface-active; border-width: 1px; border-color: Theme.accent;
+                    Text { text: "C"; font-size: 25px; font-weight: 600; color: Theme.text-primary; horizontal-alignment: center; vertical-alignment: center; }
+                }
+                VerticalLayout { spacing: 3px; horizontal-stretch: 1;
+                    Text { text: "Clavis"; color: Theme.text-primary; font-size: 22px; font-weight: 600; }
+                    Text { text: "Passwords and application secrets"; color: Theme.text-secondary; }
+                }
+                Action { text: "Lock All"; max-width: 210px; enabled: !root.busy; clicked => { root.clear-secret(); root.lock-all(); } }
+            }
+            Rectangle { height: 1px; background: Theme.control-border; }
+            HorizontalLayout {
+                spacing: 0px;
+                Rectangle {
+                    width: 226px; background: Theme.sidebar-background;
+                    VerticalLayout {
+                        padding: 16px; spacing: 12px;
+                        Text { text: "VAULTS"; color: Theme.text-muted; font-size: Theme.font-size-sm; }
+                        ScrollView {
+                            vertical-stretch: 1;
+                            horizontal-stretch: 1;
+                            VerticalLayout { spacing: 8px;
+                        for vault[i] in root.vaults: Rectangle {
+                            height: 66px; border-radius: Theme.radius-sm;
+                            border-width: i == root.selected-vault ? 1px : 0px;
+                            border-color: Theme.accent;
+                            background: i == root.selected-vault ? Theme.surface-active : vault-touch.has-hover ? Theme.surface-hover : transparent;
+                            VerticalLayout { padding: 10px; spacing: 3px;
+                                Text { text: vault.label; color: Theme.text-primary; overflow: elide; font-weight: 500; }
+                                Text { text: vault.state; color: Theme.text-muted; font-size: Theme.font-size-sm; }
+                            }
+                            vault-touch := TouchArea { clicked => { root.clear-secret(); root.select-vault(i); } }
+                        }
+                            }
+                        }
+                        Action { text: "New Vault"; enabled: !root.busy; clicked => { root.new-label = "Personal"; root.dialog-kind = 1; } }
+                        Action { text: "Change Password"; enabled: !root.busy && !root.locked && root.selected-vault >= 0; clicked => { root.clear-secret(); root.change-password(); } }
+                        Action { text: "Backup"; enabled: !root.busy; clicked => { root.clear-secret(); root.backup(); } }
+                        Text { text: "Secrets are encrypted on disk. Labels and attributes are used for search."; color: Theme.text-muted; wrap: word-wrap; font-size: Theme.font-size-sm; }
+                    }
+                }
+                Rectangle { width: 1px; background: Theme.control-border; }
+                VerticalLayout {
+                    padding: 20px; spacing: 14px;
+                    HorizontalLayout { spacing: 10px;
+                        LineEdit { placeholder-text: "Search by name or application"; text <=> root.search; }
+                        Action { text: "Refresh"; enabled: !root.busy; clicked => { root.clear-secret(); root.refresh(); } }
+                        Action { text: "Add"; primary: true; enabled: !root.busy && !root.locked && root.selected-vault >= 0;
+                            clicked => { root.new-label = ""; root.new-application = ""; root.new-key = ""; root.new-secret = ""; root.dialog-kind = 2; }
+                        }
+                    }
+                    if root.locked: Rectangle {
+                        vertical-stretch: 1;
+                        VerticalLayout { alignment: center; padding: 40px; spacing: 18px;
+                            Text { text: root.selected-vault < 0 ? "Create your vault" : "Vault locked"; font-size: 22px; color: Theme.text-primary; horizontal-alignment: center; }
+                            Text { text: root.selected-vault < 0 ? "Choose a password to store application secrets." : "Unlock it to view and edit entries."; color: Theme.text-secondary; horizontal-alignment: center; wrap: word-wrap; }
+                            HorizontalLayout { alignment: center; Action { text: "Unlock"; primary: true; enabled: !root.busy && root.selected-vault >= 0; clicked => { root.unlock(); } } }
+                        }
+                    }
+                    if !root.locked: HorizontalLayout {
+                        spacing: 18px;
+                        ScrollView {
+                            horizontal-stretch: 1; min-width: 250px;
+                            VerticalLayout { spacing: 7px;
+                                if root.credentials.length == 0: Text { text: "No entries yet"; color: Theme.text-muted; }
+                                for item[i] in root.credentials: Rectangle {
+                                    height: 68px; border-radius: Theme.radius-sm;
+                                    border-width: 1px; border-color: i == root.selected-item ? Theme.accent : Theme.control-border;
+                                    background: i == root.selected-item ? Theme.surface-active : item-touch.has-hover ? Theme.surface-hover : Theme.control-surface;
+                                    VerticalLayout { padding: 12px; spacing: 4px;
+                                        Text { text: item.label; color: Theme.text-primary; font-weight: 500; overflow: elide; }
+                                        Text { text: item.application; color: Theme.text-muted; font-size: Theme.font-size-sm; overflow: elide; }
+                                    }
+                                    item-touch := TouchArea { clicked => { root.clear-secret(); root.select-item(i); } }
+                                }
+                            }
+                        }
+                        if root.selected-item >= 0 && root.selected-item < root.credentials.length: Rectangle {
+                            width: 270px; border-radius: Theme.radius-md; border-width: 1px; border-color: Theme.control-border; background: Theme.control-surface;
+                            VerticalLayout { padding: 18px; spacing: 14px;
+                                Text { text: root.credentials[root.selected-item].label; color: Theme.text-primary; font-size: 18px; wrap: word-wrap; }
+                                Text { text: root.credentials[root.selected-item].application; color: Theme.text-secondary; wrap: word-wrap; }
+                                Rectangle { height: 1px; background: Theme.control-border; }
+                                Text { text: "SECRET"; color: Theme.text-muted; font-size: Theme.font-size-sm; }
+                                Text { text: root.revealed == "" ? "••••••••••••" : root.revealed; color: Theme.text-primary; wrap: char-wrap; }
+                                Action { text: root.revealed == "" ? "Show for 20 seconds" : "Hide"; enabled: !root.busy; clicked => { if root.revealed == "" { root.reveal(); } else { root.revealed = ""; } } }
+                                Rectangle { height: 1px; background: Theme.control-border; }
+                                Text { text: "ATTRIBUTES"; color: Theme.text-muted; font-size: Theme.font-size-sm; }
+                                Text { text: root.credentials[root.selected-item].attributes; color: Theme.text-secondary; wrap: char-wrap; font-size: Theme.font-size-sm; }
+                                Rectangle { vertical-stretch: 1; }
+                                Action { text: "Delete Entry"; enabled: !root.busy; clicked => { root.dialog-kind = 3; } }
+                            }
+                        }
+                    }
+                }
+            }
+            Rectangle { height: 1px; background: Theme.control-border; }
+            Rectangle { height: 36px;
+                Text { x: 20px; width: parent.width - 40px; height: parent.height; text: root.busy ? "Working…" : root.status; color: Theme.text-secondary; font-size: Theme.font-size-sm; vertical-alignment: center; overflow: elide; }
+            }
+        }
+        if root.dialog-kind > 0: Rectangle {
+            width: parent.width; height: parent.height; background: #00000060;
+            TouchArea { clicked => { root.close-dialog(); } }
+            Rectangle {
+                x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+                width: 460px; height: form.preferred-height;
+                border-radius: Theme.radius-md; background: Theme.window-background.with-alpha(1); border-width: 1px; border-color: Theme.control-border;
+                form := VerticalLayout { padding: 24px; spacing: 14px;
+                    Text { text: root.dialog-kind == 1 ? "New Vault" : root.dialog-kind == 2 ? "Add Secret" : "Delete this entry?"; color: Theme.text-primary; font-size: 20px; font-weight: 500; }
+                    if root.dialog-kind != 3: LineEdit { placeholder-text: "Label"; text <=> root.new-label; }
+                    if root.dialog-kind == 2: LineEdit { placeholder-text: "Application, e.g. org.example.App"; text <=> root.new-application; }
+                    if root.dialog-kind == 2: LineEdit { placeholder-text: "Key, e.g. account"; text <=> root.new-key; }
+                    if root.dialog-kind == 2: LineEdit { placeholder-text: "Password or token"; input-type: InputType.password; text <=> root.new-secret; }
+                    if root.dialog-kind == 3: Text { text: "Deletion cannot be undone. The application may require signing in again."; color: Theme.text-secondary; wrap: word-wrap; }
+                    HorizontalLayout { spacing: 10px; alignment: end;
+                        Action { text: "Cancel"; clicked => { root.close-dialog(); } }
+                        Action { text: root.dialog-kind == 3 ? "Delete" : "Save"; primary: true;
+                            clicked => {
+                                if root.dialog-kind == 1 { root.create-vault(root.new-label); }
+                                if root.dialog-kind == 2 { root.save-item(root.new-label,root.new-application,root.new-key,root.new-secret); }
+                                if root.dialog-kind == 3 { root.delete-item(); }
+                                root.close-dialog();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component PasswordWindow inherits Window {
+    title: "Clavis"; background: transparent;
+    default-font-family: Theme.font-family; default-font-size: Theme.font-size-md;
+    preferred-width: 500px; preferred-height: 420px; min-width: 440px; min-height: 380px;
+    in property <string> heading;
+    in property <string> description;
+    in property <bool> confirm-required;
+    in property <bool> incorrect;
+    in-out property <string> password;
+    in-out property <string> confirmation;
+    callback submit(); callback cancel();
+    public function focus-password() { password-input.focus(); }
+    Material { width: parent.width; height: parent.height;
+        VerticalLayout { padding: 28px; spacing: 16px;
+            Text { text: "CLAVIS"; color: Theme.accent; font-size: Theme.font-size-sm; font-weight: 600; }
+            Text { text: root.heading; color: Theme.text-primary; font-size: 22px; font-weight: 500; wrap: word-wrap; }
+            Text { text: root.description; color: Theme.text-secondary; wrap: word-wrap; }
+            if root.incorrect: Text { text: "Incorrect password. Try again."; color: Theme.accent; }
+            password-input := LineEdit { text <=> root.password; input-type: InputType.password; placeholder-text: "Vault password";
+                accepted => { if root.password != "" && (!root.confirm-required || root.password == root.confirmation) { root.submit(); } }
+            }
+            if root.confirm-required: LineEdit { text <=> root.confirmation; input-type: InputType.password; placeholder-text: "Repeat password";
+                accepted => { if root.password != "" && root.password == root.confirmation { root.submit(); } }
+            }
+            Rectangle { vertical-stretch: 1; }
+            HorizontalLayout { alignment: end; spacing: 12px;
+                Action { text: "Cancel"; clicked => { root.cancel(); } }
+                Action { text: root.confirm-required ? "Save Password" : "Unlock"; primary: true; enabled: root.password != "" && (!root.confirm-required || root.password == root.confirmation); clicked => { root.submit(); } }
+            }
+        }
+        FocusScope { key-pressed(e) => { if e.text == Key.Escape { root.cancel(); return accept; } reject } }
+    }
+}

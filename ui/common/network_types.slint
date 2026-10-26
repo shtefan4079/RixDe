@@ -1,0 +1,22 @@
+export struct NetworkDeviceRow {
+    path: string, name: string, iface: string, kind: int, state: int, managed: bool,
+    hardware: bool, available: bool, scanning: bool,
+}
+export struct NetworkProfileDraft {
+    path: string, name: string, uuid: string, device: string, kind: string,
+    ssid: string, security: string, password: string, username: string,
+    anonymous-identity: string, eap: string, phase2-auth: string,
+    ca-cert: string, client-cert: string, private-key: string,
+    private-key-password: string,
+    ipv4-method: string, ipv4-addresses: string, ipv4-gateway: string,
+    ipv4-dns: string, ipv4-routes: string,
+    ipv6-method: string, ipv6-addresses: string, ipv6-gateway: string,
+    ipv6-dns: string, ipv6-routes: string,
+    mac-address: string, band: string, bssid: string,
+    autoconnect: bool, remember: bool, shared: bool, hidden: bool,
+    metered: int, powersave: int,
+    vpn-service: string, vpn-data: string, vpn-secrets: string,
+    apn: string, number: string, pin: string,
+    proxy-method: string, proxy-pac-url: string, proxy-pac-script: string,
+    priority: int, mtu: int, domain-suffix-match: string,
+}

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Clavis
+Comment=Manage encrypted passwords, application tokens and keys
+Exec=clavis gui
+TryExec=clavis
+Icon=dialog-password
+Type=Application
+Categories=Utility;Security;
+StartupWMClass=org.clavis.Clavis
+Keywords=password;key;credential;vault;secret;clavis;

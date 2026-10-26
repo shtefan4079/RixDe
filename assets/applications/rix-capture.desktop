@@ -1,0 +1,20 @@
+[Desktop Entry]
+Type=Application
+Name=Rix Capture
+Comment=Select, annotate and copy screenshots
+Exec=rix-capture
+TryExec=rix-capture
+Icon=camera-photo
+Terminal=false
+Categories=Graphics;
+StartupNotify=false
+StartupWMClass=rix-capture
+Actions=Editor;Screen;
+
+[Desktop Action Editor]
+Name=Open image editor
+Exec=rix-capture --editor
+
+[Desktop Action Screen]
+Name=Capture entire screen
+Exec=rix-capture --screen

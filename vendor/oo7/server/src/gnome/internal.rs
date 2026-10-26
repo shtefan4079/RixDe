@@ -1,0 +1,527 @@
+// Backward compatibility interface for GNOME Keyring.
+// This allows creating/unlocking collections without user prompts.
+
+use oo7::{
+    Secret,
+    dbus::{
+        ServiceError,
+        api::{DBusSecret, DBusSecretInner, Properties},
+    },
+    file::Keyring,
+};
+use zbus::zvariant::{ObjectPath, OwnedObjectPath, OwnedValue};
+
+use crate::{
+    error::custom_service_error,
+    prompt::{Prompt, PromptAction, PromptResultType, PromptRole},
+    service::Service,
+};
+
+#[derive(Clone)]
+pub struct InternalInterface {
+    service: Service,
+}
+
+impl InternalInterface {
+    pub fn new(service: Service) -> Self {
+        Self { service }
+    }
+
+    async fn decrypt_secret(
+        &self,
+        secret: DBusSecretInner,
+        sender: Option<&zbus::names::UniqueName<'_>>,
+    ) -> Result<oo7::Secret, ServiceError> {
+        let session_path = &secret.0;
+        self.service
+            .require_session_owner(session_path, sender)
+            .await?;
+
+        let Some(session) = self.service.session(session_path).await else {
+            return Err(ServiceError::NoSession(format!(
+                "The session `{session_path}` does not exist."
+            )));
+        };
+
+        let secret = DBusSecret::from_inner(&self.service.connection(), secret)
+            .await
+            .map_err(|err| {
+                custom_service_error(&format!("Failed to create session object {err}"))
+            })?;
+
+        secret
+            .decrypt(session.aes_key().as_ref())
+            .map_err(|err| custom_service_error(&format!("Failed to decrypt secret {err}")))
+    }
+}
+
+#[zbus::interface(name = "org.gnome.keyring.InternalUnsupportedGuiltRiddenInterface")]
+impl InternalInterface {
+    /// Create a collection with a master password without prompting the user.
+    #[zbus(name = "CreateWithMasterPassword")]
+    async fn create_with_master_password(
+        &self,
+        properties: Properties,
+        master: DBusSecretInner,
+        #[zbus(header)] header: zbus::message::Header<'_>,
+    ) -> Result<OwnedObjectPath, ServiceError> {
+        let label = properties.label().to_owned();
+        let secret = self.decrypt_secret(master, header.sender()).await?;
+
+        let collection_path = self
+            .service
+            .create_collection_with_secret(&label, "", Some(secret))
+            .await?;
+
+        tracing::info!(
+            "Collection `{}` created with label '{}' via InternalUnsupportedGuiltRiddenInterface",
+            collection_path,
+            label
+        );
+
+        Ok(collection_path)
+    }
+
+    /// Unlock a collection with a master password.
+    #[zbus(name = "UnlockWithMasterPassword")]
+    async fn unlock_with_master_password(
+        &self,
+        collection: ObjectPath<'_>,
+        master: DBusSecretInner,
+        #[zbus(header)] header: zbus::message::Header<'_>,
+    ) -> Result<(), ServiceError> {
+        let secret = self.decrypt_secret(master, header.sender()).await?;
+
+        let collection_obj = self
+            .service
+            .collection_from_path(&collection)
+            .await
+            .ok_or_else(|| ServiceError::NoSuchObject(collection.to_string()))?;
+
+        collection_obj.set_locked(false, Some(secret)).await?;
+
+        tracing::info!(
+            "Collection `{}` unlocked via InternalUnsupportedGuiltRiddenInterface",
+            collection
+        );
+
+        Ok(())
+    }
+
+    /// Change collection password with a master password.
+    #[zbus(name = "ChangeWithMasterPassword")]
+    async fn change_with_master_password(
+        &self,
+        collection: ObjectPath<'_>,
+        original: DBusSecretInner,
+        master: DBusSecretInner,
+        #[zbus(header)] header: zbus::message::Header<'_>,
+    ) -> Result<(), ServiceError> {
+        let original_secret = self.decrypt_secret(original, header.sender()).await?;
+        let new_secret = self.decrypt_secret(master, header.sender()).await?;
+        if new_secret.is_empty() {
+            return Err(custom_service_error(
+                "Clavis requires a nonempty encryption password",
+            ));
+        }
+
+        let collection_obj = self
+            .service
+            .collection_from_path(&collection)
+            .await
+            .ok_or_else(|| ServiceError::NoSuchObject(collection.to_string()))?;
+
+        collection_obj
+            .set_locked(false, Some(original_secret))
+            .await?;
+
+        let keyring_guard = collection_obj.keyring.read().await;
+        if let Some(Keyring::Unlocked(unlocked)) = keyring_guard.as_ref() {
+            unlocked
+                .change_secret(new_secret)
+                .await
+                .map_err(|err| custom_service_error(&format!("Failed to change secret: {err}")))?;
+        } else {
+            return Err(custom_service_error("Collection is not unlocked"));
+        }
+
+        tracing::info!(
+            "Collection `{}` password changed via InternalUnsupportedGuiltRiddenInterface",
+            collection
+        );
+
+        Ok(())
+    }
+
+    /// Change collection password with a prompt.
+    #[zbus(name = "ChangeWithPrompt")]
+    pub(crate) async fn change_with_prompt(
+        &self,
+        collection: ObjectPath<'_>,
+        #[zbus(header)] header: zbus::message::Header<'_>,
+    ) -> Result<OwnedObjectPath, ServiceError> {
+        let collection_obj = self
+            .service
+            .collection_from_path(&collection)
+            .await
+            .ok_or_else(|| ServiceError::NoSuchObject(collection.to_string()))?;
+
+        let label = collection_obj.label().await;
+
+        let prompt = Prompt::new(
+            self.service.clone(),
+            PromptRole::ChangePassword,
+            PromptResultType::ObjectPath,
+            label,
+            None,
+        )
+        .await;
+        prompt.set_owner(header.sender()).await;
+        let prompt_path: OwnedObjectPath = prompt.path().to_owned().into();
+
+        let service = self.service.clone();
+        let collection_path = collection.to_owned();
+        let action = PromptAction::new(move |new_secret: Option<Secret>| {
+            let service = service.clone();
+            let collection_path = collection_path.clone();
+            async move {
+                let collection = service
+                    .collection_from_path(&collection_path)
+                    .await
+                    .ok_or_else(|| ServiceError::NoSuchObject(collection_path.to_string()))?;
+
+                let keyring_guard = collection.keyring.read().await;
+                if let Some(Keyring::Unlocked(unlocked)) = keyring_guard.as_ref() {
+                    if let Some(new_secret) = new_secret {
+                        unlocked.change_secret(new_secret).await.map_err(|err| {
+                            custom_service_error(&format!("Failed to change secret: {err}"))
+                        })?;
+                    } else {
+                        return Err(custom_service_error(
+                            "Cannot change to empty password via this interface",
+                        ));
+                    }
+                } else {
+                    return Err(custom_service_error(
+                        "Collection must be unlocked to change password",
+                    ));
+                }
+
+                tracing::info!(
+                    "Collection `{}` password changed via prompt",
+                    collection_path
+                );
+
+                Ok(OwnedValue::from(ObjectPath::from_str_unchecked("/")))
+            }
+        });
+
+        prompt.set_action(action).await;
+
+        self.service
+            .object_server()
+            .at(prompt.path(), prompt.clone())
+            .await?;
+
+        self.service
+            .register_prompt(prompt_path.clone(), prompt)
+            .await;
+
+        tracing::info!(
+            "Created password change prompt for collection `{}`",
+            collection
+        );
+
+        Ok(prompt_path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use oo7::{Secret, dbus};
+    use zbus::zvariant::{ObjectPath, OwnedObjectPath};
+
+    use crate::tests::TestServiceSetup;
+
+    /// Proxy for the InternalUnsupportedGuiltRiddenInterface
+    #[zbus::proxy(
+        interface = "org.gnome.keyring.InternalUnsupportedGuiltRiddenInterface",
+        default_service = "org.freedesktop.secrets",
+        default_path = "/org/freedesktop/secrets",
+        gen_blocking = false
+    )]
+    trait InternalInterfaceProxy {
+        #[zbus(name = "CreateWithMasterPassword")]
+        fn create_with_master_password(
+            &self,
+            properties: dbus::api::Properties,
+            master: dbus::api::DBusSecretInner,
+        ) -> zbus::Result<OwnedObjectPath>;
+
+        #[zbus(name = "UnlockWithMasterPassword")]
+        fn unlock_with_master_password(
+            &self,
+            collection: &ObjectPath<'_>,
+            master: dbus::api::DBusSecretInner,
+        ) -> zbus::Result<()>;
+
+        #[zbus(name = "ChangeWithMasterPassword")]
+        fn change_with_master_password(
+            &self,
+            collection: &ObjectPath<'_>,
+            original: dbus::api::DBusSecretInner,
+            master: dbus::api::DBusSecretInner,
+        ) -> zbus::Result<()>;
+
+        #[zbus(name = "ChangeWithPrompt")]
+        fn change_with_prompt(&self, collection: &ObjectPath<'_>) -> zbus::Result<OwnedObjectPath>;
+    }
+
+    #[tokio::test]
+    async fn test_create_with_master_password() -> Result<(), Box<dyn std::error::Error>> {
+        let setup = TestServiceSetup::encrypted_session(false).await?;
+
+        // Create proxy to the InternalInterface
+        let internal_proxy = InternalInterfaceProxyProxy::builder(&setup.client_conn)
+            .build()
+            .await?;
+
+        // Prepare properties for collection creation
+        let label = "TestCollection";
+        let properties = oo7::dbus::api::Properties::for_collection(label);
+
+        // Prepare the master password secret
+        let dbus_secret = setup.create_dbus_secret("my-master-password")?;
+        let dbus_secret_inner = dbus_secret.into();
+
+        // Call CreateWithMasterPassword via D-Bus
+        let collection_path = internal_proxy
+            .create_with_master_password(properties, dbus_secret_inner)
+            .await?;
+
+        // Verify the collection was created
+        assert!(
+            !collection_path.as_str().is_empty(),
+            "Collection path should not be empty"
+        );
+
+        // Verify we can access the newly created collection via D-Bus
+        let collection =
+            oo7::dbus::api::Collection::new(&setup.client_conn, collection_path.clone()).await?;
+        let label = collection.label().await?;
+        assert_eq!(
+            label, "TestCollection",
+            "Collection should have the correct label"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_unlock_with_master_password() -> Result<(), Box<dyn std::error::Error>> {
+        let setup = TestServiceSetup::encrypted_session(true).await?;
+        let internal_proxy = InternalInterfaceProxyProxy::builder(&setup.client_conn)
+            .build()
+            .await?;
+
+        // Get the default collection
+        let default_collection = setup.default_collection().await?;
+        let collection_path: zbus::zvariant::OwnedObjectPath =
+            default_collection.inner().path().to_owned().into();
+
+        // Lock the collection
+        setup
+            .service_api
+            .lock(std::slice::from_ref(&collection_path), None)
+            .await?;
+
+        // Verify it's locked
+        assert!(
+            default_collection.is_locked().await?,
+            "Collection should be locked"
+        );
+
+        // Prepare the unlock secret (use the keyring secret)
+        let unlock_secret = setup.keyring_secret.clone().unwrap();
+        let dbus_secret = setup.create_dbus_secret(unlock_secret)?;
+        let dbus_secret_inner = dbus_secret.into();
+
+        // Call UnlockWithMasterPassword via D-Bus
+        internal_proxy
+            .unlock_with_master_password(&collection_path.as_ref(), dbus_secret_inner)
+            .await?;
+
+        // Verify it's unlocked
+        assert!(
+            !default_collection.is_locked().await?,
+            "Collection should be unlocked"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_change_with_master_password() -> Result<(), Box<dyn std::error::Error>> {
+        let setup = TestServiceSetup::encrypted_session(true).await?;
+        let internal_proxy = InternalInterfaceProxyProxy::builder(&setup.client_conn)
+            .build()
+            .await?;
+
+        let default_collection = setup.default_collection().await?;
+        let collection_path: zbus::zvariant::OwnedObjectPath =
+            default_collection.inner().path().to_owned().into();
+
+        // Prepare original and new secrets
+        let original_secret = setup.keyring_secret.clone().unwrap();
+        let new_secret = Secret::text("new-master-password");
+
+        let original_dbus = setup.create_dbus_secret(original_secret)?;
+        let new_dbus = setup.create_dbus_secret(new_secret.clone())?;
+
+        // Call ChangeWithMasterPassword via D-Bus
+        internal_proxy
+            .change_with_master_password(
+                &collection_path.as_ref(),
+                original_dbus.into(),
+                new_dbus.into(),
+            )
+            .await?;
+
+        // Verify the password was changed by locking and unlocking with new
+        // password
+        setup
+            .service_api
+            .lock(std::slice::from_ref(&collection_path), None)
+            .await?;
+        assert!(
+            default_collection.is_locked().await?,
+            "Collection should be locked"
+        );
+
+        // Unlock with new password via D-Bus
+        let unlock_dbus = setup.create_dbus_secret(new_secret)?;
+        internal_proxy
+            .unlock_with_master_password(&collection_path.as_ref(), unlock_dbus.into())
+            .await?;
+
+        assert!(
+            !default_collection.is_locked().await?,
+            "Collection should be unlocked with new password"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_change_with_prompt() -> Result<(), Box<dyn std::error::Error>> {
+        let setup = TestServiceSetup::encrypted_session(true).await?;
+        setup.set_password_accept(true).await;
+
+        let internal_proxy = InternalInterfaceProxyProxy::builder(&setup.client_conn)
+            .build()
+            .await?;
+
+        let default_collection = setup.default_collection().await?;
+        let collection_path: zbus::zvariant::OwnedObjectPath =
+            default_collection.inner().path().to_owned().into();
+
+        // Call ChangeWithPrompt via D-Bus
+        let prompt_path = internal_proxy
+            .change_with_prompt(&collection_path.as_ref())
+            .await?;
+
+        // Verify prompt was created
+        assert!(
+            !prompt_path.as_str().is_empty(),
+            "Prompt path should not be empty"
+        );
+
+        // Get the prompt and complete it
+        let prompt_proxy = dbus::api::Prompt::new(&setup.client_conn, prompt_path)
+            .await?
+            .unwrap();
+        let new_password = Secret::text("new-password-from-prompt");
+        setup.set_password_queue(vec![new_password.clone()]).await;
+
+        prompt_proxy.prompt(None).await?;
+
+        // Wait for prompt to complete
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        // Verify the password was changed by locking and unlocking with new
+        // password
+        setup
+            .service_api
+            .lock(std::slice::from_ref(&collection_path), None)
+            .await?;
+        assert!(
+            default_collection.is_locked().await?,
+            "Collection should be locked"
+        );
+
+        // Unlock with new password via D-Bus
+        let unlock_dbus = setup.create_dbus_secret(new_password)?;
+        internal_proxy
+            .unlock_with_master_password(&collection_path.as_ref(), unlock_dbus.into())
+            .await?;
+
+        assert!(
+            !default_collection.is_locked().await?,
+            "Collection should be unlocked with new password"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_unlock_with_wrong_password() -> Result<(), Box<dyn std::error::Error>> {
+        let setup = TestServiceSetup::encrypted_session(true).await?;
+        let internal_proxy = InternalInterfaceProxyProxy::builder(&setup.client_conn)
+            .build()
+            .await?;
+
+        let default_collection = setup.default_collection().await?;
+        let collection_path: zbus::zvariant::OwnedObjectPath =
+            default_collection.inner().path().to_owned().into();
+
+        // Create an item first so that the unlock validation has something to
+        // validate
+        let dbus_secret = setup.create_dbus_secret("item-secret")?;
+
+        let mut attributes = std::collections::HashMap::new();
+        attributes.insert("test".to_string(), "value".to_string());
+
+        default_collection
+            .create_item("Test Item", &attributes, &dbus_secret, false, None)
+            .await?;
+
+        // Lock the collection
+        setup
+            .service_api
+            .lock(std::slice::from_ref(&collection_path), None)
+            .await?;
+
+        // Verify it's locked before attempting unlock
+        assert!(
+            default_collection.is_locked().await?,
+            "Collection should be locked before unlock attempt"
+        );
+
+        // Try to unlock with wrong password via D-Bus
+        let wrong_dbus_secret = setup.create_dbus_secret("wrong-password")?;
+
+        let result = internal_proxy
+            .unlock_with_master_password(&collection_path.as_ref(), wrong_dbus_secret.into())
+            .await;
+
+        // Should fail
+        assert!(result.is_err(), "Unlocking with wrong password should fail");
+
+        // Collection should remain locked
+        assert!(
+            default_collection.is_locked().await?,
+            "Collection should remain locked after failed unlock"
+        );
+
+        Ok(())
+    }
+}

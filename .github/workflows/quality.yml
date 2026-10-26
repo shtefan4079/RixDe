@@ -1,0 +1,79 @@
+name: Quality
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_PROFILE_DEV_DEBUG: 0
+      CARGO_PROFILE_TEST_DEBUG: 0
+      LIBGL_ALWAYS_SOFTWARE: 1
+      EGL_PLATFORM: surfaceless
+    steps:
+      # https://github.com/actions/checkout/tree/v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libclang-dev \
+            libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev libudev-dev \
+            libinput-dev libgbm-dev libdrm-dev libseat-dev libegl1-mesa-dev \
+            libgles2-mesa-dev libfontconfig1-dev libglib2.0-dev libx11-dev \
+            libxcursor-dev libxi-dev libxrandr-dev libpam0g-dev libsystemd-dev libnm0 dbus-x11 python3
+      - name: Select fixed Rust toolchain
+        run: |
+          RUST_VERSION="$(python3 -c 'import tomllib; print(tomllib.load(open("rust-toolchain.toml", "rb"))["toolchain"]["channel"])')"
+          rustup toolchain install "$RUST_VERSION" --profile minimal --component clippy --component rustfmt
+          rustup override set "$RUST_VERSION"
+      - name: Formatting
+        run: cargo fmt --all -- --check --config-path rustfmt.toml
+      - name: Cargo license metadata
+        run: python3 scripts/check-cargo-license-metadata.py
+      - name: Clippy
+        run: |
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          CARGO_TARGET_DIR=target cargo clippy --manifest-path crates/rix-rar/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Workspace tests
+        run: cargo test --workspace --locked -- --test-threads=1
+      - name: Real EGL capture policy and orientation
+        run: cargo test -p rix-comp --locked gpu_capture_omits_overlay_and_its_blur_while_display_keeps_it -- --ignored
+      - name: Real EGL rounded coverage
+        run: cargo test -p rix-comp --locked gpu_coverage_is_antialiased_and_union_does_not_double_opacity -- --ignored
+      - name: Real EGL window opening and maximize
+        run: |
+          cargo test -p rix-comp --locked opening_preserves_crisp_pixels_and_geometry_for_fractional_scale_and_viewport_transforms -- --ignored
+          cargo test -p rix-comp --locked maximizing_during_opening_never_restarts_fade_or_hides_the_display_scene -- --ignored
+      - name: Real EGL cropped blur and shared texture budget
+        run: |
+          cargo test -p rix-comp --locked cropped_backdrops_match_full_output_filters_at_output_edges_and_scaled_masks -- --ignored
+          cargo test -p rix-comp --locked backdrop_budget_survives_cache_eviction_and_is_shared_with_capture -- --ignored
+          cargo test -p rix-comp --locked overlapping_backdrops_keep_identity_pixels_and_damage_on_refresh -- --ignored
+      # This one test needs a disposable unlocked Clavis collection, not just a D-Bus daemon.
+      - name: Private bus service lifecycle
+        run: >-
+          dbus-run-session -- cargo test -p rix-services --locked private_bus_ --
+          --ignored --test-threads=1
+          --skip private_bus_clavis_persistence_respects_flags_uuid_and_lock
+      - name: Standalone RAR tests
+        run: CARGO_TARGET_DIR=target cargo test --manifest-path crates/rix-rar/Cargo.toml --locked
+      - name: Release build
+        run: ./scripts/rix-build-release
+      - name: Session and staged installer
+        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'

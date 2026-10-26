@@ -1,0 +1,158 @@
+import { Theme } from "theme.slint";
+import { ThemeFrame } from "frame.slint";
+import { Icons } from "icons.slint";
+import { ScrollArea } from "../../../ui/common/scroll_area.slint";
+import { Button, SpinBox } from "std-widgets.slint";
+import { ComboBox } from "../../../ui/common/combo_box.slint";
+
+component PanelPreview inherits Rectangle {
+    in property <bool> at-top;
+    in property <bool> floating;
+    in property <int> alignment: 1;
+    in property <bool> fill: false;
+    in property <bool> windows-below;
+    in property <float> panel-opacity: 1;
+    width: 120px; height: 62px;
+    border-radius: Theme.radius-sm;
+    border-width: 1px; border-color: Theme.border-highlight;
+    background: Theme.overlay-idle;
+    Rectangle {
+        x: parent.width / 4; y: parent.height / 4;
+        width: parent.width / 2; height: parent.height / 2 + (root.windows-below ? 12px : 0px);
+        border-radius: Theme.spacing-xs;
+        background: Theme.overlay-hover;
+    }
+    Rectangle {
+        width: root.fill ? parent.width - Theme.spacing-xs * 2 : parent.width * 0.55;
+        height: 8px;
+        x: root.alignment == 0 ? Theme.spacing-xs : root.alignment == 2 ? parent.width - self.width - Theme.spacing-xs : (parent.width - self.width) / 2;
+        y: root.at-top ? (root.floating ? 6px : 1px) : parent.height - self.height - (root.floating ? 6px : 1px);
+        border-radius: root.floating ? 3px : 0px;
+        background: Theme.accent;
+        opacity: root.panel-opacity;
+        animate x, y, width, opacity { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+    }
+}
+
+component SettingGroup inherits VerticalLayout {
+    in property <string> title;
+    spacing: Theme.default-spacing;
+    alignment: start;
+    Text { text: root.title; color: Theme.text-primary; font-size: Theme.font-size-lg; font-weight: 600; horizontal-alignment: center; }
+    @children
+}
+
+export component EditModeToolbar inherits Rectangle {
+    in property <int> thickness;
+    in property <bool> floating;
+    in property <int> margin;
+    in property <bool> at-top;
+    in property <int> alignment;
+    in property <int> length-mode;
+    in property <int> fixed-length;
+    in property <bool> reserve-space;
+    in property <float> panel-opacity;
+    in property <string> selected-widget;
+    in property <int> widget-section;
+    in property <string> error-message;
+    private property <bool> adding-widget;
+    callback option-changed(string, float);
+    callback add-widget(int);
+    callback remove-widget();
+    callback set-widget-section(int);
+    callback exit-edit-mode();
+
+    background: Theme.menu-frame.available ? transparent : Theme.menu-bg;
+    border-radius: Theme.default-radius;
+    border-width: Theme.menu-frame.available ? 0px : 1px;
+    border-color: Theme.border-highlight;
+    if Theme.menu-frame.available: ThemeFrame { width: parent.width; height: parent.height; skin: Theme.menu-frame; material-opacity: Theme.material-opacity; }
+    keys := FocusScope {
+        init => { self.focus(); }
+        key-pressed(event) => { if event.text == Key.Escape { root.exit-edit-mode(); return accept; } reject }
+    }
+    forward-focus: keys;
+    VerticalLayout {
+        padding: Theme.spacing-xl;
+        spacing: Theme.spacing-lg;
+        HorizontalLayout {
+            height: 32px;
+            Text { text: @tr("Panel settings"); color: Theme.text-primary; font-size: Theme.font-size-xl; font-weight: 600; vertical-alignment: center; horizontal-stretch: 1; }
+            Button { text: @tr("Add widget…"); clicked => { root.adding-widget = !root.adding-widget; } }
+            Button { text: @tr("Done"); clicked => { root.exit-edit-mode(); } }
+        }
+        Rectangle { height: 1px; background: Theme.divider; }
+        if root.adding-widget: HorizontalLayout {
+            height: 32px;
+            kind := ComboBox { model: [@tr("Application menu"), @tr("Applications"), @tr("System tray"), @tr("Clock"), @tr("Desktop"), @tr("Spacer")]; horizontal-stretch: 1; }
+            Button { text: @tr("Add"); clicked => { root.add-widget(kind.current-index); root.adding-widget = false; } }
+        }
+        body := ScrollArea {
+            content-height: settings-layout.preferred-height;
+            VerticalLayout {
+                settings-layout := VerticalLayout {
+                    width: body.content-width;
+                    spacing: Theme.spacing-xl;
+                    GridLayout {
+                        spacing: Theme.spacing-xl;
+                        Row {
+                            SettingGroup {
+                                title: @tr("Position");
+                                HorizontalLayout { alignment: center; PanelPreview { at-top: root.at-top; floating: root.floating; fill: true; } }
+                                ComboBox { model: [@tr("Bottom"), @tr("Top")]; current-index: root.at-top ? 1 : 0; selected(_) => { root.option-changed("position", self.current-index); } }
+                            }
+                            SettingGroup {
+                                title: @tr("Alignment");
+                                HorizontalLayout { alignment: center; PanelPreview { at-top: root.at-top; floating: root.floating; alignment: root.alignment; } }
+                                ComboBox { model: [@tr("Left"), @tr("Center"), @tr("Right")]; current-index: root.alignment; selected(_) => { root.option-changed("alignment", self.current-index); } }
+                            }
+                            SettingGroup {
+                                title: @tr("Width");
+                                HorizontalLayout { alignment: center; PanelPreview { at-top: root.at-top; floating: root.floating; fill: root.length-mode == 0; alignment: root.alignment; } }
+                                ComboBox { model: [@tr("Fullscreen"), @tr("Fit content"), @tr("Custom")]; current-index: root.length-mode; selected(_) => { root.option-changed("length-mode", self.current-index); } }
+                            }
+                        }
+                        Row {
+                            SettingGroup {
+                                title: @tr("Visibility");
+                                HorizontalLayout { alignment: center; PanelPreview { at-top: root.at-top; floating: root.floating; windows-below: !root.reserve-space; } }
+                                ComboBox { model: [@tr("Reserve space"), @tr("Above windows")]; current-index: root.reserve-space ? 0 : 1; selected(_) => { root.option-changed("reserve-space", self.current-index == 0 ? 1 : 0); } }
+                            }
+                            SettingGroup {
+                                title: @tr("Opacity");
+                                HorizontalLayout { alignment: center; PanelPreview { at-top: root.at-top; floating: root.floating; panel-opacity: root.panel-opacity; } }
+                                SpinBox { minimum: 10; maximum: 100; value: round(root.panel-opacity * 100); edited(value) => { root.option-changed("opacity", value / 100); } }
+                            }
+                            SettingGroup {
+                                title: @tr("Floating panel");
+                                HorizontalLayout { alignment: center; PanelPreview { at-top: root.at-top; floating: root.floating; } }
+                                ComboBox { model: [@tr("Off"), @tr("On")]; current-index: root.floating ? 1 : 0; selected(_) => { root.option-changed("floating", self.current-index); } }
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: Theme.default-spacing;
+                        Text { text: @tr("Height:"); color: Theme.text-secondary; vertical-alignment: center; }
+                        SpinBox { minimum: 24; maximum: 120; value: root.thickness; edited(value) => { root.option-changed("height", value); } }
+                        Text { text: @tr("Edge offset:"); color: Theme.text-secondary; vertical-alignment: center; }
+                        SpinBox { minimum: 0; maximum: 64; value: root.margin; enabled: root.floating; edited(value) => { root.option-changed("margin", value); } }
+                        if root.length-mode == 2: SpinBox { minimum: 100; maximum: 16384; value: root.fixed-length; edited(value) => { root.option-changed("length", value); } }
+                    }
+                }
+            }
+        }
+        Rectangle { height: 1px; background: Theme.divider; }
+        if root.selected-widget == "": Text {
+            text: @tr("Choose a panel widget. Drag it to change the order.");
+            color: Theme.text-secondary; wrap: word-wrap; font-size: Theme.font-size-md;
+        }
+        if root.selected-widget != "": HorizontalLayout {
+            spacing: Theme.default-spacing;
+            height: 32px;
+            Text { text: root.selected-widget; color: Theme.text-primary; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
+            ComboBox { model: [@tr("Left"), @tr("Center"), @tr("Right")]; current-index: root.widget-section; selected(_) => { root.set-widget-section(self.current-index); } }
+            Button { text: @tr("Delete"); clicked => { root.remove-widget(); } }
+        }
+        if root.error-message != "": Text { text: root.error-message; color: Theme.danger; wrap: word-wrap; }
+    }
+}

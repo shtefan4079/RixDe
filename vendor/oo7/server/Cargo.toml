@@ -1,0 +1,80 @@
+[package]
+name = "oo7-daemon"
+authors = ["Bilal Elmoussaoui", "Dhanuka Warusadura"]
+description = "Server side implementation of the freedesktop Secret Service"
+edition.workspace = true
+exclude.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "clavis-daemon"
+path = "src/main.rs"
+
+[[bin]]
+name = "clavis-login"
+path = "src/login.rs"
+
+[lib]
+name = "oo7_daemon"
+path = "src/lib.rs"
+test = false
+
+[dependencies]
+ashpd = { workspace = true, features = ["backend", "secret", "tracing"] }
+base64 = { version = "0.23", optional = true }
+clap.workspace = true
+enumflags2 = "0.7"
+formatx = "0.4"
+gettext-rs = { version = "0.8", features = ["gettext-system"] }
+hkdf = { workspace = true, optional = true }
+kwallet-parser = { version = "0.7.0-alpha", path = "../kwallet/parser", optional = true }
+libc.workspace = true
+num.workspace = true
+num-bigint-dig.workspace = true
+oo7 = { workspace = true, features = ["tokio"] }
+openssl = { workspace = true, optional = true }
+rpassword.workspace = true
+rustix = { version = "1.1", default-features = false, features = ["process", "std", "thread", "mm", "fs", "net", "event"] }
+serde.workspace = true
+serde_json.workspace = true
+serde_repr.workspace = true
+sha2 = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["full"] }
+tokio-stream = "0.1"
+tracing.workspace = true
+tracing-subscriber.workspace = true
+zbus = { workspace = true, features = ["p2p"] }
+zeroize.workspace = true
+zgvariant.workspace = true
+
+[features]
+test-util = ["dep:tempfile"]
+default = ["native_crypto", "kwallet_migration"]
+native_crypto = ["gnome_native_crypto", "plasma_native_crypto"]
+openssl_crypto = ["gnome_openssl_crypto", "plasma_openssl_crypto"]
+kwallet_migration = ["dep:kwallet-parser"]
+gnome_native_crypto = [
+    "dep:base64",
+    "dep:hkdf",
+    "dep:sha2",
+    "oo7/native_crypto"
+]
+gnome_openssl_crypto = [
+    "dep:base64",
+    "dep:openssl",
+    "oo7/openssl_crypto"
+]
+plasma_native_crypto = [
+    "oo7/native_crypto",
+]
+plasma_openssl_crypto = [
+    "oo7/openssl_crypto"
+]
+
+[dev-dependencies]
+tempfile.workspace = true

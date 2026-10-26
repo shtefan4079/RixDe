@@ -1,0 +1,10 @@
+{
+  "api": 1,
+  "id": "org.waywallen.background",
+  "name": "Waywallen",
+  "description": "Live wallpaper via the official Wayland layer-shell client. Requires Waywallen daemon running with a chosen wallpaper.",
+  "exec": ["waywallen-layer-shell", "--name", "Rix"],
+  "requires": ["waywallen-layer-shell", "waywallen"],
+  "capabilities": ["wallpaper"],
+  "settings": ["waywallen"]
+}

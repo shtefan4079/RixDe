@@ -1,0 +1,211 @@
+import { Theme } from "theme.slint";
+import { ScrollArea } from "scroll_area.slint";
+import { LineEdit } from "line_edit.slint";
+import { NetworkProfileDraft, NetworkDeviceRow } from "network_types.slint";
+import { Button, CheckBox, SpinBox } from "std-widgets.slint";
+import { ComboBox } from "combo_box.slint";
+
+component ProfileLabel inherits Text {
+    color: Theme.text-secondary;
+    font-size: Theme.font-size-md;
+    wrap: word-wrap;
+    vertical-stretch: 0;
+}
+component ProfileField inherits VerticalLayout {
+    in property <string> label;
+    in property <string> hint;
+    in property <bool> secret;
+    in property <bool> enabled: true;
+    in property <string> value;
+    callback edited(string);
+    spacing: Theme.spacing-xs;
+    alignment: start;
+    vertical-stretch: 0;
+    ProfileLabel { text: root.label; }
+    LineEdit {
+        text: root.value;
+        enabled: root.enabled;
+        placeholder-text: root.hint;
+        input-type: root.secret ? InputType.password : InputType.text;
+        edited(value) => { root.edited(value); }
+    }
+}
+
+export component NetworkProfileEditor inherits Rectangle {
+    in-out property <NetworkProfileDraft> draft;
+    in property <[NetworkDeviceRow]> devices;
+    in property <bool> busy;
+    in property <bool> permitted: true;
+    in property <string> error;
+    callback submitted(bool);
+    callback canceled();
+    private property <int> page;
+    private property <bool> show-password;
+    private property <bool> wireless: root.draft.kind == "wifi" || root.draft.kind == "802-11-wireless" || root.draft.kind == "hotspot";
+    private property <bool> enterprise: root.draft.security == "enterprise" || root.draft.security == "wpa-eap" || root.draft.security == "wpa-eap-suite-b-192";
+    private property <bool> can-submit: root.permitted && !root.busy && root.draft.name != "" && (!root.wireless || root.draft.ssid != "");
+
+    VerticalLayout {
+        spacing: Theme.spacing-lg;
+        HorizontalLayout {
+            spacing: Theme.default-spacing;
+            Text { text: root.draft.path == "" ? @tr("New connection") : @tr("Connection settings"); color: Theme.text-primary; font-size: Theme.font-size-xl; font-weight: 600; horizontal-stretch: 1; vertical-alignment: center; }
+            Button { text: root.busy ? @tr("Cancel") : @tr("Back"); clicked => { root.canceled(); } }
+        }
+        HorizontalLayout {
+            spacing: Theme.spacing-xs;
+            for title[index] in [@tr("General"), @tr("Security"), "IPv4", "IPv6", @tr("Advanced")]: Button { text: title; primary: root.page == index; clicked => { root.page = index; form.viewport-y = 0px; } }
+        }
+        form := ScrollArea {
+            vertical-stretch: 1;
+            min-height: 0px;
+            content-height: fields.preferred-height;
+            fields := VerticalLayout {
+                x: 0px; y: 0px; width: form.content-width; height: self.preferred-height;
+                spacing: Theme.spacing-lg;
+                alignment: start;
+                if root.page == 0: VerticalLayout {
+                    spacing: Theme.spacing-lg;
+                    alignment: start;
+                    vertical-stretch: 0;
+                    if root.draft.path == "" && root.draft.kind != "hotspot": VerticalLayout {
+                        spacing: Theme.spacing-xs; alignment: start; vertical-stretch: 0;
+                        ProfileLabel { text: @tr("Connection type"); }
+                        ComboBox { model: ["Wi-Fi", "Ethernet", "VPN", @tr("Mobile network")]; current-index: root.draft.kind == "802-3-ethernet" ? 1 : root.draft.kind == "vpn" ? 2 : root.draft.kind == "gsm" ? 3 : 0; enabled: !root.busy; selected(value) => { root.draft.kind = self.current-index == 1 ? "802-3-ethernet" : self.current-index == 2 ? "vpn" : self.current-index == 3 ? "gsm" : "802-11-wireless"; root.show-password = false; } }
+                    }
+                    ProfileField { label: @tr("Connection name"); value: root.draft.name; enabled: !root.busy; edited(value) => { root.draft.name = value; } }
+                    if root.wireless: ProfileField { label: @tr("Network name (SSID)"); value: root.draft.ssid; enabled: !root.busy; edited(value) => { root.draft.ssid = value; } }
+                    ProfileLabel { text: @tr("Adapter"); }
+                    Button { text: @tr("Choose automatically"); primary: root.draft.device == ""; enabled: !root.busy; clicked => { root.draft.device = ""; } }
+                    for device in root.devices: VerticalLayout {
+                        alignment: start;
+                        vertical-stretch: 0;
+                        if root.wireless ? device.kind == 2 : root.draft.kind == "802-3-ethernet" ? device.kind == 1 : root.draft.kind == "gsm" ? device.kind == 8 : true: Button { text: device.name; primary: root.draft.device == device.path || root.draft.device == device.iface; enabled: !root.busy && device.managed; clicked => { root.draft.device = device.path; } }
+                    }
+                    CheckBox { text: @tr("Connect automatically"); checked: root.draft.autoconnect; enabled: !root.busy; toggled => { root.draft.autoconnect = self.checked; } }
+                    CheckBox { text: @tr("Remember network"); checked: root.draft.remember; enabled: !root.busy; toggled => { root.draft.remember = self.checked; } }
+                    CheckBox { text: @tr("Available to all users"); checked: root.draft.shared; enabled: !root.busy && root.draft.remember; toggled => { root.draft.shared = self.checked; } }
+                    if root.wireless && root.draft.kind != "hotspot": CheckBox { text: @tr("Hidden network"); checked: root.draft.hidden; enabled: !root.busy; toggled => { root.draft.hidden = self.checked; } }
+                    ProfileLabel { text: @tr("Metered connection"); }
+                    ComboBox { model: [@tr("Detect automatically"), @tr("Yes"), @tr("No")]; current-index: root.draft.metered == 1 ? 1 : root.draft.metered == 2 ? 2 : 0; enabled: !root.busy; selected(value) => { root.draft.metered = self.current-index; } }
+                    ProfileLabel { text: @tr("Autoconnect priority"); }
+                    SpinBox { minimum: -999; maximum: 999; value: root.draft.priority; enabled: !root.busy; edited(value) => { root.draft.priority = value; } }
+                    if root.draft.kind == "gsm": VerticalLayout {
+                        spacing: Theme.spacing-lg; alignment: start; vertical-stretch: 0;
+                        ProfileField { label: @tr("Mobile network APN"); hint: "internet"; value: root.draft.apn; enabled: !root.busy; edited(value) => { root.draft.apn = value; } }
+                        ProfileField { label: @tr("Username"); value: root.draft.username; enabled: !root.busy; edited(value) => { root.draft.username = value; } }
+                        ProfileField { label: @tr("Network password"); value: root.draft.password; secret: true; enabled: !root.busy; edited(value) => { root.draft.password = value; } }
+                        ProfileField { label: @tr("SIM PIN"); value: root.draft.pin; secret: true; enabled: !root.busy; edited(value) => { root.draft.pin = value; } }
+                    }
+                    if root.draft.uuid != "": ProfileLabel { text: "UUID: " + root.draft.uuid; }
+                }
+                if root.page == 1: VerticalLayout {
+                    spacing: Theme.spacing-lg;
+                    alignment: start;
+                    vertical-stretch: 0;
+                    if root.wireless: VerticalLayout {
+                        spacing: Theme.spacing-lg; alignment: start; vertical-stretch: 0;
+                        ProfileLabel { text: @tr("Network security"); }
+                        ComboBox {
+                            model: [@tr("Open network"), "WPA2 / WPA3 Personal", "WPA3 Personal (SAE)", "OWE", "WPA Enterprise", "WPA3 Enterprise Suite-B", "WEP"];
+                            current-index: root.draft.security == "open" ? 0 : root.draft.security == "sae" ? 2 : root.draft.security == "owe" ? 3 : root.draft.security == "wpa-eap-suite-b-192" ? 5 : root.enterprise ? 4 : root.draft.security == "wep" || root.draft.security == "none" ? 6 : 1;
+                            enabled: !root.busy;
+                            selected(value) => { root.draft.security = self.current-index == 0 ? "open" : self.current-index == 2 ? "sae" : self.current-index == 3 ? "owe" : self.current-index == 4 ? "wpa-eap" : self.current-index == 5 ? "wpa-eap-suite-b-192" : self.current-index == 6 ? "wep" : "wpa-psk"; root.show-password = false; }
+                        }
+                        if root.draft.security != "open" && root.draft.security != "owe" && (!root.enterprise || root.draft.eap != "tls"): ProfileField { label: @tr("Network password"); hint: root.draft.path == "" ? @tr("Enter password") : @tr("Leave empty to keep the saved password"); value: root.draft.password; secret: !root.show-password; enabled: !root.busy; edited(value) => { root.draft.password = value; } }
+                        if root.draft.security != "open" && root.draft.security != "owe": CheckBox { text: @tr("Show password"); checked <=> root.show-password; }
+                        if root.enterprise: VerticalLayout {
+                            spacing: Theme.spacing-lg; alignment: start; vertical-stretch: 0;
+                            ProfileLabel { text: @tr("Authentication method"); }
+                            ComboBox { model: ["PEAP", "TTLS", "TLS", "PWD", "LEAP", "FAST"]; current-index: root.draft.eap == "ttls" ? 1 : root.draft.eap == "tls" ? 2 : root.draft.eap == "pwd" ? 3 : root.draft.eap == "leap" ? 4 : root.draft.eap == "fast" ? 5 : 0; enabled: !root.busy; selected(value) => { root.draft.eap = self.current-index == 1 ? "ttls" : self.current-index == 2 ? "tls" : self.current-index == 3 ? "pwd" : self.current-index == 4 ? "leap" : self.current-index == 5 ? "fast" : "peap"; } }
+                            ProfileField { label: @tr("Identity"); value: root.draft.username; enabled: !root.busy; edited(value) => { root.draft.username = value; } }
+                            ProfileField { label: @tr("Anonymous identity"); value: root.draft.anonymous-identity; enabled: !root.busy; edited(value) => { root.draft.anonymous-identity = value; } }
+                            if root.draft.eap != "tls": VerticalLayout {
+                                spacing: Theme.spacing-xs; alignment: start; vertical-stretch: 0;
+                                ProfileLabel { text: @tr("Inner authentication"); }
+                                ComboBox { model: ["MSCHAPv2", "PAP", "CHAP", "MSCHAP", "GTC"]; current-index: root.draft.phase2-auth == "pap" ? 1 : root.draft.phase2-auth == "chap" ? 2 : root.draft.phase2-auth == "mschap" ? 3 : root.draft.phase2-auth == "gtc" ? 4 : 0; enabled: !root.busy; selected(value) => { root.draft.phase2-auth = self.current-index == 1 ? "pap" : self.current-index == 2 ? "chap" : self.current-index == 3 ? "mschap" : self.current-index == 4 ? "gtc" : "mschapv2"; } }
+                            }
+                            ProfileField { label: @tr("CA certificate"); hint: "/path/to/ca.pem"; value: root.draft.ca-cert; enabled: !root.busy; edited(value) => { root.draft.ca-cert = value; } }
+                            ProfileField { label: @tr("Authentication server domain"); hint: "example.org"; value: root.draft.domain-suffix-match; enabled: !root.busy; edited(value) => { root.draft.domain-suffix-match = value; } }
+                            if root.draft.eap == "tls": VerticalLayout {
+                                spacing: Theme.spacing-lg; alignment: start; vertical-stretch: 0;
+                                ProfileField { label: @tr("Client certificate"); hint: "/path/to/client.pem"; value: root.draft.client-cert; enabled: !root.busy; edited(value) => { root.draft.client-cert = value; } }
+                                ProfileField { label: @tr("Private key"); hint: "/path/to/client.key"; value: root.draft.private-key; enabled: !root.busy; edited(value) => { root.draft.private-key = value; } }
+                                ProfileField { label: @tr("Private key password"); value: root.draft.private-key-password; secret: true; enabled: !root.busy; edited(value) => { root.draft.private-key-password = value; } }
+                            }
+                        }
+                    }
+                    if root.draft.kind == "vpn": VerticalLayout {
+                        spacing: Theme.spacing-lg; alignment: start; vertical-stretch: 0;
+                        ProfileField { label: @tr("VPN plugin service"); hint: "org.freedesktop.NetworkManager.openvpn"; value: root.draft.vpn-service; enabled: !root.busy; edited(value) => { root.draft.vpn-service = value; } }
+                        ProfileField { label: @tr("Username"); value: root.draft.username; enabled: !root.busy; edited(value) => { root.draft.username = value; } }
+                        ProfileField { label: @tr("VPN options (JSON object)"); hint: "{\"remote\":\"vpn.example.org\"}"; value: root.draft.vpn-data; enabled: !root.busy; edited(value) => { root.draft.vpn-data = value; } }
+                        ProfileField { label: @tr("VPN secrets (JSON object)"); hint: @tr("Leave empty to keep existing secrets"); value: root.draft.vpn-secrets; secret: !root.show-password; enabled: !root.busy; edited(value) => { root.draft.vpn-secrets = value; } }
+                        CheckBox { text: @tr("Show password"); checked <=> root.show-password; }
+                        ProfileLabel { text: @tr("VPN options depend on the installed NetworkManager plugin. You can import a provider configuration from the connection list."); }
+                    }
+                    if !root.wireless && root.draft.kind != "vpn": ProfileLabel { text: @tr("This connection keeps its existing authentication settings."); }
+                }
+                if root.page == 2: VerticalLayout {
+                    spacing: Theme.spacing-lg;
+                    alignment: start;
+                    vertical-stretch: 0;
+                    ProfileLabel { text: @tr("IPv4 method"); }
+                    ComboBox { model: [@tr("Automatic (DHCP)"), @tr("Manual"), @tr("Disabled"), @tr("Link-local"), @tr("Shared")]; current-index: root.draft.ipv4-method == "manual" ? 1 : root.draft.ipv4-method == "disabled" ? 2 : root.draft.ipv4-method == "link-local" ? 3 : root.draft.ipv4-method == "shared" ? 4 : 0; enabled: !root.busy; selected(value) => { root.draft.ipv4-method = self.current-index == 1 ? "manual" : self.current-index == 2 ? "disabled" : self.current-index == 3 ? "link-local" : self.current-index == 4 ? "shared" : "auto"; } }
+                    if root.draft.ipv4-method != "disabled": VerticalLayout {
+                        spacing: Theme.spacing-lg; alignment: start; vertical-stretch: 0;
+                        ProfileField { label: @tr("Addresses (CIDR, separated by commas)"); hint: "192.168.1.20/24"; value: root.draft.ipv4-addresses; enabled: !root.busy; edited(value) => { root.draft.ipv4-addresses = value; } }
+                        ProfileField { label: @tr("Gateway"); hint: "192.168.1.1"; value: root.draft.ipv4-gateway; enabled: !root.busy; edited(value) => { root.draft.ipv4-gateway = value; } }
+                        ProfileField { label: @tr("DNS servers (separated by commas)"); hint: "1.1.1.1, 8.8.8.8"; value: root.draft.ipv4-dns; enabled: !root.busy; edited(value) => { root.draft.ipv4-dns = value; } }
+                        ProfileField { label: @tr("Routes (destination/prefix gateway metric)"); hint: "10.0.0.0/8 192.168.1.1 100"; value: root.draft.ipv4-routes; enabled: !root.busy; edited(value) => { root.draft.ipv4-routes = value; } }
+                        ProfileLabel { text: @tr("Separate multiple routes with semicolons. Leave gateway and DNS empty to use automatic values."); }
+                    }
+                }
+                if root.page == 3: VerticalLayout {
+                    spacing: Theme.spacing-lg;
+                    alignment: start;
+                    vertical-stretch: 0;
+                    ProfileLabel { text: @tr("IPv6 method"); }
+                    ComboBox { model: [@tr("Automatic"), @tr("Manual"), @tr("Disabled"), @tr("Link-local"), "DHCP", @tr("Ignore")]; current-index: root.draft.ipv6-method == "manual" ? 1 : root.draft.ipv6-method == "disabled" ? 2 : root.draft.ipv6-method == "link-local" ? 3 : root.draft.ipv6-method == "dhcp" ? 4 : root.draft.ipv6-method == "ignore" ? 5 : 0; enabled: !root.busy; selected(value) => { root.draft.ipv6-method = self.current-index == 1 ? "manual" : self.current-index == 2 ? "disabled" : self.current-index == 3 ? "link-local" : self.current-index == 4 ? "dhcp" : self.current-index == 5 ? "ignore" : "auto"; } }
+                    if root.draft.ipv6-method != "disabled" && root.draft.ipv6-method != "ignore": VerticalLayout {
+                        spacing: Theme.spacing-lg; alignment: start; vertical-stretch: 0;
+                        ProfileField { label: @tr("Addresses (CIDR, separated by commas)"); hint: "2001:db8::20/64"; value: root.draft.ipv6-addresses; enabled: !root.busy; edited(value) => { root.draft.ipv6-addresses = value; } }
+                        ProfileField { label: @tr("Gateway"); hint: "2001:db8::1"; value: root.draft.ipv6-gateway; enabled: !root.busy; edited(value) => { root.draft.ipv6-gateway = value; } }
+                        ProfileField { label: @tr("DNS servers (separated by commas)"); hint: "2606:4700:4700::1111"; value: root.draft.ipv6-dns; enabled: !root.busy; edited(value) => { root.draft.ipv6-dns = value; } }
+                        ProfileField { label: @tr("Routes (destination/prefix gateway metric)"); hint: "2001:db8:1::/64 2001:db8::1 100"; value: root.draft.ipv6-routes; enabled: !root.busy; edited(value) => { root.draft.ipv6-routes = value; } }
+                    }
+                }
+                if root.page == 4: VerticalLayout {
+                    spacing: Theme.spacing-lg;
+                    alignment: start;
+                    vertical-stretch: 0;
+                    ProfileLabel { text: @tr("MTU (0 uses the default)"); }
+                    SpinBox { minimum: 0; maximum: 65535; value: root.draft.mtu; enabled: !root.busy; edited(value) => { root.draft.mtu = value; } }
+                    ProfileField { label: @tr("MAC address"); hint: @tr("Empty, preserve, permanent or random"); value: root.draft.mac-address; enabled: !root.busy; edited(value) => { root.draft.mac-address = value; } }
+                    if root.wireless: VerticalLayout {
+                        spacing: Theme.spacing-lg; alignment: start; vertical-stretch: 0;
+                        ProfileLabel { text: @tr("Wi-Fi band"); }
+                        ComboBox { model: [@tr("Automatic"), "2.4 GHz", "5 GHz"]; current-index: root.draft.band == "bg" ? 1 : root.draft.band == "a" ? 2 : 0; enabled: !root.busy; selected(value) => { root.draft.band = self.current-index == 1 ? "bg" : self.current-index == 2 ? "a" : ""; } }
+                        ProfileField { label: "BSSID"; hint: @tr("Leave empty to allow roaming"); value: root.draft.bssid; enabled: !root.busy; edited(value) => { root.draft.bssid = value; } }
+                        ProfileLabel { text: @tr("Wi-Fi power saving"); }
+                        ComboBox { model: [@tr("Default"), @tr("Keep existing"), @tr("Disabled"), @tr("Enabled")]; current-index: root.draft.powersave; enabled: !root.busy; selected(value) => { root.draft.powersave = self.current-index; } }
+                    }
+                    ProfileLabel { text: @tr("Proxy configuration"); }
+                    ComboBox { model: [@tr("None"), @tr("Automatic (PAC)")]; current-index: root.draft.proxy-method == "auto" ? 1 : 0; enabled: !root.busy; selected(value) => { root.draft.proxy-method = self.current-index == 1 ? "auto" : "none"; } }
+                    if root.draft.proxy-method == "auto": VerticalLayout {
+                        spacing: Theme.spacing-lg; alignment: start; vertical-stretch: 0;
+                        ProfileField { label: @tr("PAC URL"); hint: "https://example.org/proxy.pac"; value: root.draft.proxy-pac-url; enabled: !root.busy; edited(value) => { root.draft.proxy-pac-url = value; } }
+                        ProfileField { label: @tr("PAC script"); value: root.draft.proxy-pac-script; enabled: !root.busy; edited(value) => { root.draft.proxy-pac-script = value; } }
+                    }
+                }
+            }
+        }
+        if root.error != "": Text { text: root.error; color: Theme.danger; wrap: word-wrap; font-size: Theme.font-size-md; }
+        HorizontalLayout {
+            spacing: Theme.default-spacing;
+            Rectangle { horizontal-stretch: 1; }
+            Button { text: root.busy ? @tr("Saving…") : @tr("Save"); enabled: root.can-submit; clicked => { root.submitted(false); } }
+            Button { text: @tr("Save and connect"); primary: true; enabled: root.can-submit; clicked => { root.submitted(true); } }
+        }
+    }
+}

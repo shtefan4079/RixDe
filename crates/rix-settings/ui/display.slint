@@ -1,0 +1,168 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { ToggleSwitch, Slider } from "../../../ui/common/controls.slint";
+import { Button, SpinBox } from "std-widgets.slint";
+import { ComboBox } from "../../../ui/common/combo_box.slint";
+import { SettingsCard, SettingsRow, SettingsDivider, ValueBadge } from "card.slint";
+
+export global OutputPreferences {
+    in-out property <bool> ready;
+    in-out property <bool> native;
+    in-out property <bool> busy;
+    in-out property <bool> pending;
+    in-out property <bool> confirm-ready;
+    in-out property <int> remaining;
+    in-out property <string> pending-output;
+    in-out property <string> error;
+    in-out property <[string]> outputs;
+    in-out property <int> selected-output;
+    in-out property <[string]> resolutions;
+    in-out property <int> selected-resolution;
+    in-out property <[string]> rates;
+    in-out property <int> selected-rate;
+    in-out property <bool> flipped;
+    in-out property <float> scale-percent: 100;
+    in-out property <int> rotation;
+    in-out property <bool> automatic-position: true;
+    in-out property <int> position-x;
+    in-out property <int> position-y;
+    callback select-output();
+    callback select-resolution();
+    callback apply();
+    callback confirm();
+    callback revert();
+}
+
+component Label inherits Text { color: Theme.text-secondary; font-size: Theme.font-size-md; vertical-alignment: center; }
+
+export component DisplayView inherits Rectangle {
+    preferred-height: content.preferred-height;
+    vertical-stretch: 0;
+    content := VerticalLayout {
+        spacing: 16px;
+
+        if !OutputPreferences.ready && OutputPreferences.error == "": Label { text: @tr("Loading displays…"); }
+        if OutputPreferences.ready && !OutputPreferences.native: Label { text: @tr("Nested session window size"); }
+        if OutputPreferences.ready && OutputPreferences.native && OutputPreferences.outputs.length == 0: Label { text: @tr("No displays connected"); }
+
+        if OutputPreferences.ready && OutputPreferences.native && OutputPreferences.outputs.length > 0: SettingsCard {
+            title: @tr("Connected display");
+            subtitle: @tr("Resolution, refresh rate and monitor scaling");
+
+            SettingsRow {
+                title: @tr("Display screen");
+                ComboBox {
+                    model: OutputPreferences.outputs;
+                    current-index <=> OutputPreferences.selected-output;
+                    enabled: !OutputPreferences.busy && !OutputPreferences.pending;
+                    selected(_) => { OutputPreferences.select-output(); }
+                    min-width: 195px;
+                }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Resolution");
+                subtitle: @tr("Pixel width and height");
+                ComboBox {
+                    model: OutputPreferences.resolutions;
+                    current-index <=> OutputPreferences.selected-resolution;
+                    enabled: !OutputPreferences.busy && !OutputPreferences.pending;
+                    selected(_) => { OutputPreferences.select-resolution(); }
+                    min-width: 195px;
+                }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Refresh rate");
+                subtitle: @tr("Display vertical frequency in Hertz");
+                ComboBox {
+                    model: OutputPreferences.rates;
+                    current-index <=> OutputPreferences.selected-rate;
+                    enabled: !OutputPreferences.busy && !OutputPreferences.pending;
+                    min-width: 195px;
+                }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Display scale");
+                subtitle: @tr("Scale factor for high DPI displays");
+                HorizontalLayout {
+                    spacing: 10px; alignment: center;
+                    Slider {
+                        value <=> OutputPreferences.scale-percent;
+                        minimum: 50; maximum: 400;
+                        enabled: !OutputPreferences.busy && !OutputPreferences.pending;
+                        min-width: 160px;
+                    }
+                    ValueBadge { text: round(OutputPreferences.scale-percent) + "%"; }
+                }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Orientation");
+                subtitle: @tr("Display rotation angle");
+                ComboBox {
+                    model: [@tr("Normal orientation"), @tr("Rotate 90°"), @tr("Rotate 180°"), @tr("Rotate 270°")];
+                    current-index <=> OutputPreferences.rotation;
+                    enabled: !OutputPreferences.busy && !OutputPreferences.pending;
+                    min-width: 195px;
+                }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Arrange displays automatically");
+                subtitle: @tr("Place secondary monitors adjacent to primary display");
+                ToggleSwitch {
+                    checked <=> OutputPreferences.automatic-position;
+                    enabled: !OutputPreferences.busy && !OutputPreferences.pending;
+                }
+            }
+
+            if !OutputPreferences.automatic-position: SettingsDivider {}
+
+            if !OutputPreferences.automatic-position: SettingsRow {
+                title: @tr("Display position");
+                subtitle: @tr("X and Y desktop coordinates");
+                HorizontalLayout {
+                    spacing: 8px; alignment: center;
+                    Label { text: "X:"; }
+                    SpinBox { value <=> OutputPreferences.position-x; minimum: -32768; maximum: 32768; enabled: !OutputPreferences.busy && !OutputPreferences.pending; }
+                    Label { text: "Y:"; }
+                    SpinBox { value <=> OutputPreferences.position-y; minimum: -32768; maximum: 32768; enabled: !OutputPreferences.busy && !OutputPreferences.pending; }
+                }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Flip display");
+                subtitle: @tr("Invert orientation 180 degrees");
+                ToggleSwitch {
+                    checked <=> OutputPreferences.flipped;
+                    enabled: !OutputPreferences.busy && !OutputPreferences.pending;
+                }
+            }
+        }
+
+        if OutputPreferences.pending: SettingsCard {
+            title: @tr("Confirm display mode change");
+            subtitle: @tr("Reverting in ") + OutputPreferences.remaining + @tr(" s");
+            HorizontalLayout {
+                spacing: 12px; alignment: end;
+                Button { text: @tr("Revert"); enabled: !OutputPreferences.busy; clicked => { OutputPreferences.revert(); } }
+                Button { text: @tr("Keep changes"); primary: true; enabled: !OutputPreferences.busy && OutputPreferences.confirm-ready && OutputPreferences.remaining > 0; clicked => { OutputPreferences.confirm(); } }
+            }
+        }
+
+        if OutputPreferences.error != "": Text { text: OutputPreferences.error; color: Theme.accent; font-size: Theme.font-size-md; wrap: word-wrap; }
+    }
+}

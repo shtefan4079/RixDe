@@ -1,0 +1,168 @@
+import { Theme } from "theme.slint";
+import { ThemeFrame } from "frame.slint";
+import { Icons } from "icons.slint";
+
+export global MenuStyle {
+
+    in-out property <bool> native-popups;
+    out property <length> minimum-width: Math.max(Theme.context-menu-width, 130px);
+    out property <length> separator-height: Theme.default-spacing + 1px;
+}
+
+export struct SharedMenuItem {
+    action: string,
+    label: string,
+    shortcut: string,
+    enabled: bool,
+    separator: bool,
+    destructive: bool,
+    checked: bool,
+}
+
+export global MenuHost {
+    callback register-owner() -> int;
+    pure callback options-items([string], int) -> [SharedMenuItem];
+    callback request(int, [SharedMenuItem], length, length, length, length, string) -> bool;
+    callback close(int);
+    in-out property <int> active-owner;
+    in-out property <int> event-owner;
+    in-out property <string> event-action;
+    in-out property <bool> event-unavailable;
+    in-out property <int> event-generation;
+}
+
+export global DialogBackdrop {
+    in-out property <image> image;
+    in-out property <bool> ready;
+    in-out property <float> radius: 16;
+    callback prepare();
+    callback clear();
+}
+
+export component MenuSurface inherits Rectangle {
+    in property <bool> material-supported: true;
+    in property <bool> opaque;
+    in property <bool> blur-local-content;
+    private property <bool> glass: root.material-supported && !root.opaque && Theme.is-aero && (!root.blur-local-content || DialogBackdrop.ready);
+
+    private property <bool> framed: Theme.menu-frame.available;
+
+    background: root.glass ? root.framed ? transparent : @linear-gradient(180deg, Theme.glass-start 0%, Theme.glass-end 100%) : Theme.menu-bg.with-alpha(1);
+    border-radius: Theme.context-menu-radius;
+    border-width: root.framed ? 0px : 1px;
+    border-color: Theme.border-highlight;
+    clip: true;
+    if root.framed: ThemeFrame {
+        width: parent.width;
+        height: parent.height;
+        skin: Theme.menu-frame;
+        material-opacity: Theme.material-opacity;
+        corner-radius: Theme.context-menu-radius;
+    }
+}
+
+export component MenuRow inherits Rectangle {
+    in property <string> label;
+    in property <string> shortcut;
+    in property <image> icon;
+    in property <bool> has-icon;
+    in property <bool> disabled;
+    in property <bool> destructive;
+    in property <bool> separator;
+    in property <bool> selected;
+    in property <bool> checked;
+    in property <bool> checkable;
+    in property <bool> radio;
+    in property <bool> submenu;
+    in property <bool> interactive: true;
+
+    in property <bool> hover-on-enter: true;
+    private property <bool> pointer-hover-ready: root.hover-on-enter;
+    callback hovered();
+    callback activated();
+
+    min-height: root.separator ? MenuStyle.separator-height : Theme.menu-row-height;
+    max-height: self.min-height;
+    border-radius: Math.min(Theme.radius-sm, Theme.context-menu-radius);
+    background: root.selected && !root.disabled && !root.separator ? root.destructive ? Theme.danger-bg : Theme.surface-hover : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-enabled: root.interactive && !root.disabled && !root.separator;
+    accessible-action-default => {
+        if root.interactive && !root.disabled && !root.separator { root.activated(); }
+    }
+    if root.separator: Rectangle {
+        x: Theme.default-spacing;
+        width: Math.max(0px, parent.width - self.x * 2);
+        y: (parent.height - 1px) / 2;
+        height: 1px;
+        background: Theme.divider;
+    }
+    if !root.separator: HorizontalLayout {
+        padding-left: Theme.default-spacing;
+        padding-right: Theme.default-spacing;
+        spacing: Theme.spacing-lg;
+        if root.has-icon || root.checked || root.checkable: Rectangle {
+            width: Theme.icon-size-sm;
+            horizontal-stretch: 0;
+            if root.checked && !root.radio: Text {
+                width: parent.width;
+                height: parent.height;
+                text: "✓";
+                color: Theme.accent;
+                font-size: Theme.font-size-md;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            if root.checked && root.radio: Rectangle {
+                width: Theme.icon-size-sm / 2;
+                height: self.width;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                border-radius: self.height / 2;
+                background: Theme.accent;
+            }
+            if root.has-icon && !root.checkable && !root.checked: Image {
+                width: Theme.icon-size-sm;
+                height: self.width;
+                y: (parent.height - self.height) / 2;
+                source: root.icon;
+                image-fit: contain;
+                opacity: root.disabled ? 0.5 : 1;
+            }
+        }
+        Text {
+            text: root.label;
+            color: root.disabled ? Theme.text-muted : root.destructive ? Theme.danger : Theme.text-primary;
+            font-size: Theme.font-size-md;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+            overflow: elide;
+        }
+        if root.shortcut != "": Text {
+            text: root.shortcut;
+            color: Theme.text-muted;
+            font-size: Theme.font-size-sm;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+            horizontal-stretch: 0;
+        }
+        if root.submenu: Image {
+            source: Icons.chevron;
+            colorize: root.disabled ? Theme.text-muted : Theme.text-secondary;
+            width: Theme.icon-size-sm;
+            height: Theme.icon-size-sm;
+            vertical-stretch: 0;
+            horizontal-stretch: 0;
+            image-fit: contain;
+        }
+    }
+    TouchArea {
+        enabled: root.interactive && !root.disabled && !root.separator;
+        changed has-hover => { if self.has-hover && root.hover-on-enter { root.hovered(); } }
+        pointer-event(event) => { if event.kind == PointerEventKind.move && root.pointer-hover-ready { root.hovered(); } }
+        clicked => { root.activated(); }
+    }
+
+    Timer { interval: 0ms; running: !root.pointer-hover-ready; triggered => { root.pointer-hover-ready = true; } }
+}

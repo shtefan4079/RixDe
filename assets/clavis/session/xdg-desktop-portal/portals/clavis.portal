@@ -1,0 +1,4 @@
+[portal]
+DBusName=org.freedesktop.impl.portal.desktop.clavis
+Interfaces=org.freedesktop.impl.portal.Secret;
+UseIn=RIX;

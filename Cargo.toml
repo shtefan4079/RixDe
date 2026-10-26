@@ -1,0 +1,105 @@
+[workspace]
+members = [
+    "crates/rix-protocols",
+    "crates/rix-services",
+    "crates/rix-assets",
+    "crates/rix-core",
+    "crates/rix-config",
+    "crates/rix-ipc",
+    "crates/rix-shell-adapter",
+    "crates/rix-shell",
+    "crates/rix-comp",
+    "crates/rix-ctl",
+    "crates/rix-settings",
+    "crates/rix-files",
+    "crates/rix-portal",
+    "crates/rix-auth",
+    "crates/rix-dm",
+    "crates/rix-login-ui",
+    "crates/rix-greeter",
+    "crates/rix-lock",
+    "crates/rix-capture",
+    "crates/clavis-client",
+    "crates/clavis-app",
+]
+exclude = ["vendor/smithay", "vendor/oo7", "vendor/sevenz-rust2", "vendor/lzma-rust2-016", "crates/rix-rar"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0-alpha.1"
+edition = "2021"
+authors = ["RixDe Contributors"]
+license = "MIT"
+
+# Slint generates large settings and shell modules. Their debug information
+# expands compiler memory enough to compete with the desktop during local tests.
+[profile.dev.package.rix-settings]
+debug = 0
+
+[profile.test.package.rix-settings]
+debug = 0
+
+[profile.dev.package.rix-shell]
+debug = 0
+
+[profile.test.package.rix-shell]
+debug = 0
+
+[workspace.dependencies]
+# Internal crates
+rix-protocols = { path = "crates/rix-protocols" }
+rix-services = { path = "crates/rix-services" }
+rix-assets = { path = "crates/rix-assets" }
+rix-core = { path = "crates/rix-core" }
+rix-config = { path = "crates/rix-config" }
+rix-ipc = { path = "crates/rix-ipc" }
+rix-shell-adapter = { path = "crates/rix-shell-adapter" }
+clavis-client = { path = "crates/clavis-client" }
+
+# Serialization & Config
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+kdl = "4.6"
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Async & System
+gio = "0.20"
+tokio = { version = "1.40", features = ["full"] }
+notify = "8.0"
+libc = "0.2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4.5", features = ["derive"] }
+
+# GUI & Graphics
+slint = { version = "=1.17.1" }
+slint-build = { version = "=1.17.1" }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "tiff"] }
+chrono = "0.4"
+
+# Wayland & Compositor
+smithay = { version = "0.7.0", default-features = false, features = [
+    "backend_winit",
+    "backend_drm",
+    "backend_gbm",
+    "backend_udev",
+    "backend_libinput",
+    "backend_session_libseat",
+    "renderer_glow",
+    "desktop",
+    "wayland_frontend",
+] }
+wayland-server = "0.31"
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "server", "staging"] }
+wayland-protocols-wlr = { version = "0.3", features = ["client", "server"] }
+wayland-protocols-misc = { version = "0.3", features = ["client", "server"] }
+xkbcommon = "0.8"
+calloop = "0.14"
+
+# Auditable fix for invalid atomic KMS state restoration in Smithay 0.7.0.
+[patch.crates-io]
+smithay = { path = "vendor/smithay" }
+sevenz-rust2 = { path = "vendor/sevenz-rust2" }
+lzma-rust2-v016 = { package = "lzma-rust2", path = "vendor/lzma-rust2-016" }

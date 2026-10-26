@@ -1,0 +1,245 @@
+import { Theme } from "theme.slint";
+import { MenuStyle, MenuSurface, MenuRow, MenuHost, SharedMenuItem } from "context_menu.slint";
+
+export component LineEdit inherits Rectangle {
+    in property <bool> enabled: true;
+    in property <string> font-family: Theme.font-family;
+    in property <bool> font-italic: false;
+    in property <length> font-size: Theme.font-size-md;
+    in property <TextHorizontalAlignment> horizontal-alignment: left;
+    in property <InputType> input-type: InputType.text;
+    in property <string> placeholder-text;
+    in property <image> leading-icon;
+    in property <bool> has-icon;
+    in property <bool> read-only;
+    in-out property <string> text;
+    out property <bool> has-focus: input.has-focus;
+    out property <bool> context-menu-open: context.is-open || root.native-menu-open;
+    callback accepted(string);
+    callback edited(string);
+    callback key-pressed(KeyEvent) -> EventResult;
+    callback key-released(KeyEvent) -> EventResult;
+
+    private property <length> inset: Theme.spacing-lg + (root.has-icon ? Theme.icon-size + Theme.default-spacing : 0px);
+    private property <length> menu-x;
+    private property <length> menu-y;
+    private property <int> selected-action: -1;
+    private property <int> menu-owner;
+    private property <bool> native-menu-open;
+    private property <int> menu-event: MenuHost.event-generation;
+    private property <int> active-menu-owner: MenuHost.active-owner;
+    changed active-menu-owner => {
+        if root.native-menu-open && root.active-menu-owner > 0 && root.active-menu-owner != root.menu-owner {
+            root.native-menu-open = false;
+        }
+    }
+    private property <[SharedMenuItem]> menu-items: [
+        {action: "cut", label: @tr("Cut"), shortcut: "Ctrl+X", enabled: root.can-cut, separator: false, destructive: false, checked: false},
+        {action: "copy", label: @tr("Copy"), shortcut: "Ctrl+C", enabled: root.can-copy, separator: false, destructive: false, checked: false},
+        {action: "paste", label: @tr("Paste"), shortcut: "Ctrl+V", enabled: root.can-paste, separator: false, destructive: false, checked: false},
+        {action: "select-all", label: @tr("Select All"), shortcut: "Ctrl+A", enabled: root.can-select, separator: false, destructive: false, checked: false},
+    ];
+    private property <bool> protected: root.input-type == InputType.password;
+    private property <bool> has-selection: input.cursor-position-byte-offset != input.anchor-position-byte-offset && root.text != "";
+    private property <bool> can-cut: root.enabled && !root.read-only && !root.protected && root.has-selection;
+    private property <bool> can-copy: root.enabled && !root.protected && root.has-selection;
+    private property <bool> can-paste: root.enabled && !root.read-only;
+    private property <bool> can-select: root.enabled && root.text != "";
+
+    min-width: Theme.icon-size * 8;
+    min-height: Math.max(Theme.menu-action-size, input.preferred-height + Theme.default-spacing * 2);
+    preferred-height: self.min-height;
+    vertical-stretch: 0;
+    horizontal-stretch: 1;
+    border-radius: Theme.radius-sm;
+    border-width: 1px;
+    border-color: root.enabled ? input.has-focus ? Theme.accent : Theme.control-border : Theme.control-border.mix(transparent, 0.5);
+    background: root.enabled ? Theme.control-surface : Theme.control-surface.mix(transparent, 0.5);
+    forward-focus: input;
+    accessible-role: text-input;
+    accessible-enabled: root.enabled;
+
+    accessible-value: root.protected ? "" : root.text;
+    accessible-placeholder-text: root.placeholder-text;
+    accessible-read-only: root.read-only;
+    accessible-action-set-value(value) => {
+        if root.enabled && !root.read-only { root.text = value; root.edited(value); }
+    }
+
+    public function set-selection-offsets(start: int, end: int) { input.set-selection-offsets(start, end); }
+    public function focus-input() { input.focus(); }
+    public function select-all() { if root.enabled { input.select-all(); } }
+    public function clear-selection() { input.clear-selection(); }
+    public function cut() { if root.can-cut { input.cut(); } }
+    public function copy() { if root.can-copy { input.copy(); } }
+    public function paste() { if root.can-paste { input.paste(); } }
+
+    function dismiss-menu() {
+        if root.native-menu-open { root.native-menu-open = false; MenuHost.close(root.menu-owner); }
+        context.close(); input.focus();
+    }
+    changed menu-event => {
+        if root.menu-owner > 0 && root.native-menu-open && MenuHost.event-owner == root.menu-owner {
+            root.native-menu-open = false;
+            if MenuHost.event-unavailable && root.enabled { context.show(); }
+            else if MenuHost.event-action == "cut" { root.perform-action(0); }
+            else if MenuHost.event-action == "copy" { root.perform-action(1); }
+            else if MenuHost.event-action == "paste" { root.perform-action(2); }
+            else if MenuHost.event-action == "select-all" { root.perform-action(3); }
+            else { input.focus(); }
+        }
+    }
+    function perform-action(index: int) {
+        if index == 0 && root.can-cut { root.cut(); }
+        if index == 1 && root.can-copy { root.copy(); }
+        if index == 2 && root.can-paste { root.paste(); }
+        if index == 3 && root.can-select { root.select-all(); }
+        root.dismiss-menu();
+    }
+    pure function action-enabled(index: int) -> bool {
+        return index == 0 ? root.can-cut : index == 1 ? root.can-copy : index == 2 ? root.can-paste : index == 3 && root.can-select;
+    }
+    function move-selection(direction: int) {
+        let start = root.selected-action < 0 && direction < 0 ? 0 : root.selected-action;
+        let first = Math.mod(start + direction + 4, 4);
+        let second = Math.mod(first + direction + 4, 4);
+        let third = Math.mod(second + direction + 4, 4);
+        let fourth = Math.mod(third + direction + 4, 4);
+        if root.action-enabled(first) { root.selected-action = first; }
+        else if root.action-enabled(second) { root.selected-action = second; }
+        else if root.action-enabled(third) { root.selected-action = third; }
+        else if root.action-enabled(fourth) { root.selected-action = fourth; }
+    }
+    function open-menu(x: length, y: length) {
+        if root.enabled {
+            root.menu-x = x;
+            root.menu-y = y;
+            root.selected-action = -1;
+            input.focus();
+            if root.menu-owner == 0 { root.menu-owner = MenuHost.register-owner(); }
+            context.close();
+            root.native-menu-open = root.menu-owner > 0 && MenuHost.request(root.menu-owner, root.menu-items,
+                root.absolute-position.x + x, root.absolute-position.y + y,
+                MenuStyle.minimum-width, Theme.menu-row-height * 4 + Theme.context-menu-padding * 2,
+                root.placeholder-text);
+            if !root.native-menu-open { context.show(); }
+        }
+    }
+    changed enabled => { if !root.enabled { root.dismiss-menu(); } }
+    changed text => {
+        if input.preferred-width <= viewport.width { input.scroll-x = 0px; }
+    }
+
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: MouseCursor.text;
+        pointer-event(event) => {
+            if event.button == PointerEventButton.right && event.kind == PointerEventKind.up {
+                root.open-menu(self.mouse-x, self.mouse-y);
+            }
+        }
+        if root.has-icon: Image { x: Theme.spacing-lg; y: (parent.height - self.height) / 2; width: Theme.icon-size; height: self.width; source: root.leading-icon; colorize: Theme.text-muted; image-fit: contain; opacity: root.enabled ? 1 : 0.5; }
+        viewport := Rectangle {
+            x: root.inset;
+            width: Math.max(1px, root.width - root.inset * 2);
+            height: parent.height;
+            clip: true;
+            Text {
+                width: parent.width;
+                height: parent.height;
+                text: root.text == "" && input.preedit-text == "" ? root.placeholder-text : "";
+                color: root.enabled ? Theme.text-muted : Theme.text-muted.mix(transparent, 0.5);
+                font-family: root.font-family;
+                font-size: root.font-size;
+                font-italic: root.font-italic;
+                vertical-alignment: center;
+                horizontal-alignment: root.horizontal-alignment;
+                overflow: elide;
+                accessible-role: none;
+            }
+            input := TextInput {
+                private property <length> scroll-x;
+                x: Math.min(0px, Math.max(parent.width - self.width - self.text-cursor-width, self.scroll-x));
+                width: Math.max(parent.width - self.text-cursor-width, self.preferred-width);
+                height: parent.height;
+                text <=> root.text;
+                single-line: true;
+                enabled: root.enabled;
+                read-only: root.read-only;
+                input-type: root.input-type;
+                font-family: root.font-family;
+                font-size: root.font-size;
+                font-italic: root.font-italic;
+                color: root.enabled ? Theme.text-primary : Theme.text-primary.mix(transparent, 0.5);
+                horizontal-alignment: root.horizontal-alignment;
+                vertical-alignment: center;
+                selection-background-color: Theme.accent;
+                selection-foreground-color: Theme.text-primary;
+                accessible-role: none;
+                cursor-position-changed(position) => {
+                    if position.x + self.scroll-x < 0px { self.scroll-x = -position.x; }
+                    else if position.x + self.scroll-x > parent.width - self.text-cursor-width {
+                        self.scroll-x = parent.width - position.x - self.text-cursor-width;
+                    }
+                }
+                accepted => { root.accepted(self.text); }
+                edited => { root.edited(self.text); }
+                key-pressed(event) => {
+                    if root.protected && event.modifiers.control && (event.text == "c" || event.text == "C" || event.text == "x" || event.text == "X" || event.text == Key.Insert) { return accept; }
+                    if root.protected && event.modifiers.shift && event.text == Key.Delete { return accept; }
+                    if event.text == Key.Menu || (event.text == Key.F10 && event.modifiers.shift) {
+                        root.open-menu(root.inset, root.height);
+                        return accept;
+                    }
+                    root.key-pressed(event)
+                }
+                key-released(event) => { root.key-released(event) }
+            }
+        }
+    }
+
+    context := PopupWindow {
+        x: root.menu-x;
+        y: root.menu-y;
+        width: MenuStyle.minimum-width;
+        height: Theme.menu-row-height * 4 + Theme.context-menu-padding * 2;
+        close-policy: close-on-click-outside;
+        MenuSurface {
+            opaque: !MenuStyle.native-popups;
+            width: parent.width;
+            height: parent.height;
+            keys := FocusScope {
+                init => { self.focus(); }
+                key-pressed(event) => {
+                    if event.text == Key.Escape { root.dismiss-menu(); return accept; }
+                    if event.text == Key.UpArrow { root.move-selection(-1); return accept; }
+                    if event.text == Key.DownArrow { root.move-selection(1); return accept; }
+                    if event.text == Key.Home { root.selected-action = -1; root.move-selection(1); return accept; }
+                    if event.text == Key.End { root.selected-action = -1; root.move-selection(-1); return accept; }
+                    if event.text == Key.Return || event.text == " " {
+                        if root.action-enabled(root.selected-action) { root.perform-action(root.selected-action); }
+                        return accept;
+                    }
+                    accept
+                }
+            }
+            VerticalLayout {
+                padding: Theme.context-menu-padding;
+                spacing: 0px;
+                for action[index] in [
+                    { label: @tr("Cut"), shortcut: "Ctrl+X" },
+                    { label: @tr("Copy"), shortcut: "Ctrl+C" },
+                    { label: @tr("Paste"), shortcut: "Ctrl+V" },
+                    { label: @tr("Select All"), shortcut: "Ctrl+A" },
+                ]: MenuRow {
+                    label: action.label;
+                    shortcut: action.shortcut;
+                    disabled: !root.action-enabled(index);
+                    selected: root.selected-action == index;
+                    hovered => { root.selected-action = index; }
+                    activated => { root.perform-action(index); }
+                }
+            }
+        }
+    }
+}

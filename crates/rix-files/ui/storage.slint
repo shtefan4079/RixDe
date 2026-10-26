@@ -1,0 +1,98 @@
+import { Theme } from "../../../ui/common/theme.slint";
+
+export component DiskSummary inherits Rectangle {
+    in property <string> name;
+    in property <string> mount;
+    in property <string> detail;
+    in property <string> usage;
+    in property <float> ratio;
+    in property <bool> ready;
+    in property <image> icon;
+    callback open;
+    callback context(length, length);
+
+    accessible-role: button;
+    accessible-label: @tr("Disk storage");
+    accessible-description: root.name + " · " + root.mount + " · " + root.detail;
+    accessible-action-default => { if root.mount != "" { root.open(); } }
+    height: Theme.icon-size + Theme.font-size-sm + Theme.default-spacing * 2 + 18px;
+    border-radius: Theme.radius-sm;
+    border-width: 1px;
+    border-color: Theme.border;
+    background: disk-touch.has-hover ? Theme.surface-hover : Theme.overlay-idle;
+    animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+
+    VerticalLayout {
+        padding: Theme.default-spacing;
+        spacing: Theme.spacing-xs;
+        HorizontalLayout {
+            spacing: Theme.default-spacing;
+            Image {
+                source: root.icon;
+                width: Theme.icon-size;
+                height: self.width;
+                image-fit: contain;
+                vertical-alignment: center;
+            }
+            VerticalLayout {
+                spacing: 3px;
+                HorizontalLayout {
+                    spacing: Theme.spacing-xs;
+                    Text {
+                        text: root.name;
+                        color: Theme.text-primary;
+                        font-size: Theme.font-size-sm;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                    }
+                    Text {
+                        text: root.ready ? root.usage : "";
+                        color: Theme.text-secondary;
+                        font-size: Theme.font-size-sm - 1px;
+                        vertical-alignment: center;
+                    }
+                }
+                Rectangle {
+                    height: 4px;
+                    background: Theme.divider;
+                    border-radius: 2px;
+                    clip: true;
+                    Rectangle {
+                        x: 0px;
+                        y: 0px;
+                        width: root.ready ? parent.width * Math.clamp(root.ratio, 0, 1) : 0px;
+                        height: parent.height;
+                        border-radius: parent.border-radius;
+                        background: root.ratio >= 0.9 ? Theme.danger : Theme.accent;
+                    }
+                }
+                HorizontalLayout {
+                    Text {
+                        text: root.mount != "" ? root.mount : root.detail;
+                        color: Theme.text-muted;
+                        font-size: Theme.font-size-sm - 1px;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                    }
+                    if root.ready: Text {
+                        text: Math.round((1 - Math.clamp(root.ratio, 0, 1)) * 100) + "% " + @tr("free");
+                        color: Theme.text-muted;
+                        font-size: Theme.font-size-sm - 1px;
+                    }
+                }
+            }
+        }
+    }
+    disk-touch := TouchArea {
+        enabled: root.mount != "";
+        mouse-cursor: pointer;
+        pointer-event(e) => {
+            if e.button == PointerEventButton.right && e.kind == PointerEventKind.down {
+                root.context(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y);
+            }
+        }
+        clicked => { root.open(); }
+    }
+}

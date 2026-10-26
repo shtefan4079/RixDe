@@ -1,0 +1,130 @@
+import { SkinFrame } from "frame.slint";
+export global Theme {
+    in property <length> preview-width;
+    in property <length> preview-height;
+    in property <length> preview-header-height;
+    in property <float> preview-delay;
+    in property <float> preview-hide-delay;
+    in property <float> preview-refresh;
+    in property <length> system-popup-width;
+    in property <length> system-popup-height;
+    in property <length> calendar-cell-height;
+    in property <length> audio-row-height;
+    in property <SkinFrame> task-active-frame;
+    in property <SkinFrame> task-hover-frame;
+    in property <SkinFrame> panel-frame;
+    in property <SkinFrame> menu-frame;
+    in property <float> material-opacity: 1;
+    in property <color> window-background;
+    in property <color> control-surface;
+    in property <color> control-border;
+    in property <color> sidebar-background;
+
+    in property <color> background: #13141cf2;
+    in property <color> surface: #1e202bcc;
+    in property <color> surface-hover: #292c3be6;
+    in property <color> surface-active: #323648ee;
+    in property <color> menu-bg: #151622f8;
+    in property <color> glass-start: #151928f5;
+    in property <color> glass-end: #0d101bf8;
+
+    in property <color> accent: #5271ff;
+    in property <color> accent-hover: #6b85ff;
+    in property <color> accent-glow: #5271ff55;
+    in property <color> accent-gradient-start: #6366f1;
+    in property <color> accent-gradient-end: #3b82f6;
+
+    in property <color> text-primary: #ffffff;
+    in property <color> text-secondary: #94a3b8;
+    in property <color> text-muted: #64748b;
+
+    in property <color> success: #10b981;
+    in property <color> danger: #ef4444;
+    in property <color> danger-bg: #ef444428;
+
+    in property <color> border: #ffffff1f;
+    in property <color> border-highlight: #ffffff3d;
+    in property <color> edit-outline: #5271ff;
+    in property <color> divider: #ffffff20;
+    in property <color> overlay-hover: #ffffff25;
+    in property <color> overlay-idle: #ffffff12;
+    in property <color> value-bg: #00000045;
+    in property <color> knob: #ffffff;
+    in property <color> shadow: #000000bb;
+
+    in property <float> hover-duration;
+    in property <float> popup-duration;
+    in property <length> popup-distance;
+    in property <length> scrollbar-gutter;
+    in property <length> scrollbar-width;
+    in property <length> scrollbar-hover-width;
+    in property <length> scrollbar-min-thumb;
+    in property <color> scrollbar;
+    in property <color> scrollbar-hover;
+    in property <color> task-active-background;
+    in property <color> task-hover-background;
+    in property <length> menu-action-size;
+    in property <length> editor-width;
+    in property <length> editor-height;
+
+    in property <length> default-radius: 12px;
+    in property <length> radius-sm: 6px;
+    in property <length> radius-md: 8px;
+    in property <length> radius-lg: 16px;
+    in property <length> radius-pill: 999px;
+
+    in property <length> default-spacing: 8px;
+    in property <length> spacing-xs: 4px;
+    in property <length> spacing-lg: 12px;
+    in property <length> spacing-xl: 16px;
+
+    in property <length> icon-size: 20px;
+    in property <length> icon-size-sm: 15px;
+    in property <length> icon-size-lg: 28px;
+
+    in property <length> font-size-sm: 12px;
+    in property <length> font-size-md: 13px;
+    in property <length> font-size-lg: 14px;
+    in property <length> font-size-xl: 15px;
+
+    in property <length> menu-padding: 24px;
+    in property <length> menu-sidebar-width: 214px;
+    in property <length> menu-column-gap: 18px;
+    in property <length> menu-header-height: 76px;
+    in property <length> menu-footer-height: 59px;
+    in property <length> menu-row-height: 34px;
+    in property <length> app-row-height: 46px;
+    in property <length> favorite-cell-width: 88px;
+    in property <length> favorite-cell-height: 104px;
+    in property <length> favorite-icon-size: 48px;
+    in property <length> panel-vertical-padding;
+    in property <length> panel-icon-size;
+    in property <length> panel-launcher-icon-size;
+    in property <length> panel-tray-icon-size;
+    in property <length> task-padding;
+    in property <length> task-spacing;
+    in property <length> task-indicator-height;
+    in property <length> task-indicator-active-width;
+    in property <length> task-indicator-width;
+    in property <length> task-pin-indicator-size;
+    in property <length> clock-padding;
+    in property <length> panel-padding: 8px;
+    in property <length> widget-spacing: 4px;
+    in property <length> task-width: 40px;
+    in property <length> task-label-width: 164px;
+    in property <float> task-highlight-scale;
+    in property <float> task-highlight-radius-scale;
+    in property <length> clock-width: 64px;
+    in property <length> tray-width: 26px;
+    in property <length> context-menu-radius: 4px;
+    in property <length> context-menu-padding: 4px;
+    in property <length> app-icon-size: 30px;
+    in property <length> context-menu-width: 140px;
+    in property <length> context-menu-max-height: 520px;
+    in property <length> show-desktop-width: 18px;
+    in property <length> menu-gap: 0px;
+
+    in-out property <bool> is-aero: true;
+
+    in property <string> font-family: "Inter, Noto Sans, Roboto, sans-serif";
+}

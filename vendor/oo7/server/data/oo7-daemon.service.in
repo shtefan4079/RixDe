@@ -1,0 +1,36 @@
+[Unit]
+Description=Secret service (oo7 implementation)
+
+[Service]
+Type=dbus
+BusName=@dbus_known_name@
+StandardError=journal
+ExecStart=@libexecdir@/@binary@
+Restart=on-failure
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+ImportCredential=oo7.keyring-encryption-password
+
+# Prevent privilege escalation (blocks suid, new caps, etc.)
+NoNewPrivileges=true
+
+# Clear supplementary groups
+SupplementaryGroups=
+PrivateUsers=yes
+
+# Restrict filesystem access
+ProtectSystem=full
+PrivateTmp=yes
+PrivateDevices=yes
+
+# No network needed
+PrivateNetwork=yes
+
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+MemoryDenyWriteExecute=yes
+ProtectClock=yes
+
+[Install]
+WantedBy=default.target

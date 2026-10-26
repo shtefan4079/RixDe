@@ -1,0 +1,33 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { ToggleSwitch } from "../../../ui/common/controls.slint";
+import { Button } from "std-widgets.slint";
+export struct InstalledTheme { id: string, name: string, description: string }
+export global BundledThemes {
+    in-out property <[InstalledTheme]> packages;
+    in-out property <bool> include-layout: true;
+    callback apply(string);
+}
+export component BundledThemesView inherits Rectangle {
+    in property <bool> busy;
+    preferred-height: content.preferred-height;
+    VerticalLayout {
+        content := VerticalLayout {
+            spacing: Theme.spacing-lg;
+            if BundledThemes.packages.length > 0: Text { text: @tr("Installed themes"); color: Theme.text-primary; font-size: Theme.font-size-lg; font-weight: 600; }
+            for package in BundledThemes.packages: Rectangle {
+                min-height: 100px; border-radius: Theme.radius-md;
+                background: Theme.control-surface; border-width: 1px; border-color: Theme.control-border;
+                HorizontalLayout {
+                    padding: Theme.spacing-xl; spacing: Theme.spacing-xl;
+                    VerticalLayout {
+                        spacing: Theme.spacing-xs;
+                        Text { text: package.name; color: Theme.text-primary; font-size: Theme.font-size-lg; font-weight: 600; }
+                        Text { text: package.description; color: Theme.text-secondary; wrap: word-wrap; }
+                    }
+                    Button { text: @tr("Apply"); height: Theme.menu-action-size; vertical-stretch: 0; primary: true; enabled: !root.busy; clicked => { BundledThemes.apply(package.id); } }
+                }
+            }
+            if BundledThemes.packages.length > 0: ToggleSwitch { text: @tr("Apply panel and application menu layout"); checked <=> BundledThemes.include-layout; }
+        }
+    }
+}

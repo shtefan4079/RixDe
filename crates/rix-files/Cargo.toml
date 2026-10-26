@@ -1,0 +1,58 @@
+[package]
+name = "rix-files"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+rix-core.workspace = true
+rix-config.workspace = true
+rix-assets.workspace = true
+rix-ipc.workspace = true
+rix-services = { path = "../rix-services" }
+rix-portal = { path = "../rix-portal" }
+hayro = { version = "=0.7.1", features = ["embed-fonts"] }
+image.workspace = true
+quick-xml = "=0.38.4"
+globset = "0.4"
+zip = { version = "=8.6.0", default-features = false, features = ["deflate", "aes-crypto", "bzip2", "lzma", "zstd", "xz"] }
+tar = "0.4"
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+sevenz-rust2 = { version = "=0.23.0", default-features = false, features = ["aes256", "bzip2", "deflate", "ppmd", "zstd"] }
+lzma-rust2 = { version = "=0.21.0", default-features = false, features = ["std", "xz"] }
+bzip2 = "0.6"
+zstd = "0.13"
+slint = { version = "=1.17.1", default-features = false, features = ["std", "backend-winit-wayland", "renderer-femtovg", "renderer-software", "compat-1-2", "accessibility", "raw-window-handle-06", "unstable-winit-030"] }
+tokio.workspace = true
+notify.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+clap.workspace = true
+libc.workspace = true
+chrono = "0.4"
+trash = { version = "5", features = ["chrono"] }
+tempfile = "3"
+url = "2"
+freedesktop-desktop-entry = { version = "0.8", default-features = false }
+xdg-mime = "0.4"
+zbus = { version = "5.19", default-features = false, features = ["tokio"] }
+wl-clipboard-rs = "0.9"
+raw-window-handle = "0.6"
+wayland-client = { workspace = true, features = ["system"] }
+wayland-protocols-plasma = { version = "0.3", features = ["client"] }
+wayland-protocols = { workspace = true, features = ["unstable"] }
+smithay-client-toolkit = { version = "=0.19.2", default-features = false }
+xkbcommon.workspace = true
+
+[build-dependencies]
+slint-build.workspace = true
+rspolib = "=0.1.2"
+
+[dev-dependencies]
+i-slint-backend-testing = "=1.17.1"
+slint = { version = "=1.17.1", default-features = false, features = ["renderer-software"] }
+image.workspace = true

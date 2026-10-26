@@ -1,0 +1,916 @@
+diff --git a/include/config.h b/include/config.h
+--- a/include/config.h
++++ b/include/config.h
+@@ -10,6 +10,7 @@
+ 	char *exec_before;
+ 	char *exec_after;
+ 	char *chooser_cmd;
++	char *remote_control_cmd;
+ 	enum xdpw_chooser_types chooser_type;
+ 	bool force_mod_linear;
+ };
+diff --git a/include/remote_desktop.h b/include/remote_desktop.h
+--- /dev/null
++++ b/include/remote_desktop.h
+@@ -0,0 +1,16 @@
++#ifndef REMOTE_DESKTOP_H
++#define REMOTE_DESKTOP_H
++
++#include "xdpw.h"
++
++#define XDPW_REMOTE_INTERFACE "org.freedesktop.impl.portal.RemoteDesktop"
++#define XDPW_REMOTE_KEYBOARD 1u
++#define XDPW_REMOTE_POINTER 2u
++
++bool xdpw_remote_require_frontend(sd_bus_message *msg, const struct xdpw_session *session);
++struct xdpw_session *xdpw_remote_find_session(struct xdpw_state *state, const char *path);
++int xdpw_remote_session_configure(struct xdpw_session *session, sd_bus_message *msg, const char *app_id);
++void xdpw_remote_session_finish(struct xdpw_session *session);
++int xdpw_remote_desktop_init(struct xdpw_state *state);
++
++#endif
+diff --git a/include/screencast.h b/include/screencast.h
+--- a/include/screencast.h
++++ b/include/screencast.h
+@@ -1,5 +1,10 @@
+ #ifndef SCREENCAST_H
+ #define SCREENCAST_H
++
++struct sd_bus_message;
++struct sd_bus_error;
++int xdpw_screencast_create_session(struct sd_bus_message *msg, void *data, struct sd_bus_error *error);
++int xdpw_screencast_start(struct sd_bus_message *msg, void *data, struct sd_bus_error *error);
+ 
+ #include "screencast_common.h"
+ 
+diff --git a/include/screencast_common.h b/include/screencast_common.h
+--- a/include/screencast_common.h
++++ b/include/screencast_common.h
+@@ -118,6 +118,7 @@
+ 	struct ext_foreign_toplevel_image_capture_source_manager_v1 *ext_foreign_toplevel_image_capture_source_manager;
+ 	struct ext_image_copy_capture_manager_v1 *ext_image_copy_capture_manager;
+ 	struct ext_foreign_toplevel_list_v1 *ext_foreign_toplevel_list;
++	struct rix_remote_input_manager_v1 *remote_input_manager;
+ 	struct wl_shm *shm;
+ 	struct zwp_linux_dmabuf_v1 *linux_dmabuf;
+ 	struct zwp_linux_dmabuf_feedback_v1 *linux_dmabuf_feedback;
+diff --git a/include/xdpw.h b/include/xdpw.h
+--- a/include/xdpw.h
++++ b/include/xdpw.h
+@@ -24,6 +24,9 @@
+ 	uint32_t screencast_cursor_modes; // bitfield of enum cursor_modes
+ 	uint32_t screencast_version;
+ 	uint32_t screenshot_version;
++	uint32_t remote_desktop_devices;
++	uint32_t remote_desktop_version;
++	sd_bus_slot *remote_owner_slot;
+ 	struct xdpw_config *config;
+ 	int timer_poll_fd;
+ 	struct wl_list timers;
+@@ -35,10 +38,21 @@
+ };
+ 
+ struct xdpw_session {
++	struct xdpw_state *state;
+ 	struct wl_list link;
+ 	sd_bus_slot *slot;
+ 	char *session_handle;
+ 	bool closed;
++	bool remote_desktop;
++	bool remote_authorized;
++	bool remote_keysym_unsupported;
++	bool remote_devices_selected;
++	uint32_t remote_devices;
++	char *remote_app_id;
++	char *remote_portal_owner;
++	struct rix_remote_input_session_v1 *remote_input;
++	struct xdpw_remote_consent *remote_consent;
++	struct xdpw_timer *remote_revoke_timer;
+ 	struct xdpw_screencast_session_data screencast_data;
+ };
+ 
+diff --git a/meson.build b/meson.build
+--- a/meson.build
++++ b/meson.build
+@@ -58,6 +58,7 @@
+ 	'src/core/timespec_util.c',
+ 	'src/screenshot/screenshot.c',
+ 	'src/screencast/screencast.c',
++	'src/screencast/remote_desktop.c',
+ 	'src/screencast/chooser.c',
+ 	'src/screencast/screencast_common.c',
+ 	'src/screencast/ext_image_copy.c',
+diff --git a/protocols/meson.build b/protocols/meson.build
+--- a/protocols/meson.build
++++ b/protocols/meson.build
+@@ -13,6 +13,7 @@
+ 	wl_protocol_dir / 'staging/ext-image-copy-capture/ext-image-copy-capture-v1.xml',
+ 	wl_protocol_dir / 'staging/ext-foreign-toplevel-list/ext-foreign-toplevel-list-v1.xml',
+ 	'wlr-screencopy-unstable-v1.xml',
++	'rix-remote-input-v1.xml',
+ ]
+ 
+ wl_proto_files = []
+diff --git a/src/core/config.c b/src/core/config.c
+--- a/src/core/config.c
++++ b/src/core/config.c
+@@ -15,6 +15,7 @@
+ 	logprint(loglevel, "config: exec_before:  %s", config->screencast_conf.exec_before);
+ 	logprint(loglevel, "config: exec_after:  %s", config->screencast_conf.exec_after);
+ 	logprint(loglevel, "config: chooser_cmd: %s", config->screencast_conf.chooser_cmd);
++	logprint(loglevel, "config: remote_control_cmd: %s", config->screencast_conf.remote_control_cmd);
+ 	logprint(loglevel, "config: chooser_type: %s", chooser_type_str(config->screencast_conf.chooser_type));
+ 	logprint(loglevel, "config: force_mod_linear: %d", config->screencast_conf.force_mod_linear);
+ }
+@@ -29,6 +30,7 @@
+ 	free(config->screencast_conf.exec_before);
+ 	free(config->screencast_conf.exec_after);
+ 	free(config->screencast_conf.chooser_cmd);
++	free(config->screencast_conf.remote_control_cmd);
+ }
+ 
+ static void parse_string(char **dest, const char* value) {
+@@ -76,6 +78,8 @@
+ 		parse_string(&chooser_type, value);
+ 		screencast_conf->chooser_type = get_chooser_type(chooser_type);
+ 		free(chooser_type);
++	} else if (strcmp(key, "remote_control_cmd") == 0) {
++		parse_string(&screencast_conf->remote_control_cmd, value);
+ 	} else if (strcmp(key, "force_mod_linear") == 0) {
+ 		parse_bool(&screencast_conf->force_mod_linear, value);
+ 	} else {
+diff --git a/src/core/session.c b/src/core/session.c
+--- a/src/core/session.c
++++ b/src/core/session.c
+@@ -6,6 +6,7 @@
+ #include "xdpw.h"
+ #include "screencast.h"
+ #include "logger.h"
++#include "remote_desktop.h"
+ 
+ static const char interface_name[] = "org.freedesktop.impl.portal.Session";
+ 
+@@ -13,6 +14,9 @@
+ 		sd_bus_error *ret_error) {
+ 	int ret = 0;
+ 	struct xdpw_session *sess = data;
++	if (sess->remote_desktop && !xdpw_remote_require_frontend(msg, sess)) {
++		return sd_bus_error_set_const(ret_error, SD_BUS_ERROR_ACCESS_DENIED, "Only the desktop portal may close this session");
++	}
+ 	logprint(INFO, "dbus: session closed");
+ 
+ 	sd_bus_message *reply = NULL;
+@@ -42,6 +46,11 @@
+ 
+ struct xdpw_session *xdpw_session_create(struct xdpw_state *state, sd_bus *bus, char *object_path) {
+ 	struct xdpw_session *sess = calloc(1, sizeof(struct xdpw_session));
++	if (!sess) {
++		free(object_path);
++		return NULL;
++	}
++	sess->state = state;
+ 
+ 	sess->session_handle = object_path;
+ 
+@@ -69,6 +78,7 @@
+ 	}
+ 
+ 	sd_bus_slot_unref(sess->slot);
++	xdpw_remote_session_finish(sess);
+ 	wl_list_remove(&sess->link);
+ 
+ 	struct xdpw_screencast_instance *cast = sess->screencast_data.screencast_instance;
+diff --git a/src/screencast/remote_desktop.c b/src/screencast/remote_desktop.c
+--- /dev/null
++++ b/src/screencast/remote_desktop.c
+@@ -0,0 +1,560 @@
++/* Native, consented RemoteDesktop input on the permissioned Rix Wayland seat.
++ * ScreenCast and RemoteDesktop deliberately share this backend and session list.
++ * There is no root helper, uinput device, unattended grant, or synthetic success. */
++#include "remote_desktop.h"
++#include "screencast.h"
++#include "logger.h"
++#include "rix-remote-input-v1-client-protocol.h"
++
++#include <errno.h>
++#include <fcntl.h>
++#include <math.h>
++#include <signal.h>
++#include <spawn.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/wait.h>
++#include <time.h>
++#include <unistd.h>
++
++extern char **environ;
++
++static const char frontend[] = "org.freedesktop.portal.Desktop";
++static const char desktop_path[] = "/org/freedesktop/portal/desktop";
++
++struct xdpw_remote_consent {
++	struct xdpw_state *state;
++	struct xdpw_session *session;
++	sd_bus_message *message;
++	sd_bus_slot *slot;
++	struct xdpw_timer *timer;
++	pid_t child;
++	struct timespec deadline;
++};
++
++bool xdpw_remote_require_frontend(sd_bus_message *msg, const struct xdpw_session *session) {
++	const char *sender = sd_bus_message_get_sender(msg);
++	if (!sender || (session && (!session->remote_portal_owner ||
++			strcmp(sender, session->remote_portal_owner) != 0))) {
++		return false;
++	}
++	sd_bus_creds *creds = NULL;
++	const char *owner = NULL;
++	int ret = sd_bus_get_name_creds(sd_bus_message_get_bus(msg), frontend,
++		SD_BUS_CREDS_UNIQUE_NAME, &creds);
++	bool allowed = ret >= 0 && sd_bus_creds_get_unique_name(creds, &owner) >= 0 &&
++		owner && strcmp(owner, sender) == 0;
++	sd_bus_creds_unref(creds);
++	return allowed;
++}
++
++struct xdpw_session *xdpw_remote_find_session(struct xdpw_state *state, const char *path) {
++	struct xdpw_session *session;
++	wl_list_for_each(session, &state->xdpw_sessions, link) {
++		if (strcmp(session->session_handle, path) == 0) {
++			return session;
++		}
++	}
++	return NULL;
++}
++
++int xdpw_remote_session_configure(struct xdpw_session *session, sd_bus_message *msg, const char *app_id) {
++	session->remote_app_id = strdup(app_id);
++	session->remote_portal_owner = strdup(sd_bus_message_get_sender(msg));
++	if (!session->remote_app_id || !session->remote_portal_owner) {
++		return -ENOMEM;
++	}
++	session->remote_desktop = true;
++	return 0;
++}
++
++static void consent_cancel(struct xdpw_remote_consent *consent) {
++	if (consent->session) {
++		consent->session->remote_consent = NULL;
++		consent->session = NULL;
++	}
++	sd_bus_slot_unref(consent->slot);
++	consent->slot = NULL;
++	if (consent->message) {
++		sd_bus_reply_method_return(consent->message, "ua{sv}", PORTAL_RESPONSE_CANCELLED, 0);
++		sd_bus_message_unref(consent->message);
++		consent->message = NULL;
++	}
++	if (consent->child > 0) {
++		kill(-consent->child, SIGKILL);
++		kill(consent->child, SIGKILL);
++	}
++	/* The polling timer owns the allocation until waitpid reaps the child. */
++}
++
++void xdpw_remote_session_finish(struct xdpw_session *session) {
++	if (session->remote_consent) {
++		consent_cancel(session->remote_consent);
++	}
++	if (session->remote_revoke_timer) {
++		xdpw_destroy_timer(session->remote_revoke_timer);
++		session->remote_revoke_timer = NULL;
++	}
++	if (session->remote_input) {
++		rix_remote_input_session_v1_destroy(session->remote_input);
++		session->remote_input = NULL;
++		wl_display_flush(session->state->wl_display);
++	}
++	session->remote_authorized = false;
++	free(session->remote_app_id);
++	free(session->remote_portal_owner);
++	session->remote_app_id = NULL;
++	session->remote_portal_owner = NULL;
++}
++
++static void finish_revoked_session(void *data) {
++	struct xdpw_session *session = data;
++	session->remote_revoke_timer = NULL;
++	xdpw_session_destroy(session);
++}
++
++static void input_closed(void *data, struct rix_remote_input_session_v1 *input, uint32_t reason) {
++	struct xdpw_session *session = data;
++	if (session->remote_input != input) {
++		return;
++	}
++	logprint(INFO, "remote-desktop: native input revoked (reason %u)", reason);
++	session->remote_authorized = false;
++	session->remote_input = NULL;
++	rix_remote_input_session_v1_destroy(input);
++	/* Do not free session from a roundtrip inside its Start callback. */
++	if (!session->remote_revoke_timer) {
++		session->remote_revoke_timer = xdpw_add_timer(session->state, 1,
++			finish_revoked_session, session);
++	}
++}
++
++static void input_unsupported_keysym(void *data,
++		struct rix_remote_input_session_v1 *input, uint32_t symbol) {
++	struct xdpw_session *session = data;
++	if (session->remote_input == input) {
++		session->remote_keysym_unsupported = true;
++		logprint(WARN, "remote-desktop: keysym 0x%x cannot be represented by the active keyboard layout", symbol);
++	}
++}
++
++static const struct rix_remote_input_session_v1_listener input_listener = {
++	.closed = input_closed,
++	.unsupported_keysym = input_unsupported_keysym,
++};
++
++static bool request_session(sd_bus_message *msg, struct xdpw_state *state,
++		const char *path, const char *app_id, struct xdpw_session **out) {
++	struct xdpw_session *session = xdpw_remote_find_session(state, path);
++	if (!session || !session->remote_desktop || !xdpw_remote_require_frontend(msg, session) ||
++			(app_id && strcmp(session->remote_app_id, app_id) != 0)) {
++		return false;
++	}
++	*out = session;
++	return true;
++}
++
++static int select_devices(sd_bus_message *msg, void *data, sd_bus_error *error) {
++	struct xdpw_state *state = data;
++	const char *request, *path, *app;
++	int ret = sd_bus_message_read(msg, "oos", &request, &path, &app);
++	if (ret < 0) return ret;
++	struct xdpw_session *session;
++	if (!request_session(msg, state, path, app, &session)) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_ACCESS_DENIED, "Invalid remote session owner");
++	}
++	if (session->remote_devices_selected || session->remote_consent || session->remote_authorized) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_FAILED, "Devices already selected or session started");
++	}
++	uint32_t types = state->remote_desktop_devices;
++	ret = sd_bus_message_enter_container(msg, 'a', "{sv}");
++	if (ret < 0) return ret;
++	while ((ret = sd_bus_message_enter_container(msg, 'e', "sv")) > 0) {
++		const char *key;
++		ret = sd_bus_message_read(msg, "s", &key);
++		if (ret < 0) return ret;
++		if (strcmp(key, "types") == 0) {
++			ret = sd_bus_message_read(msg, "v", "u", &types);
++		} else if (strcmp(key, "persist_mode") == 0) {
++			uint32_t mode;
++			ret = sd_bus_message_read(msg, "v", "u", &mode);
++			if (ret >= 0 && mode != 0) {
++				return sd_bus_error_set_const(error, SD_BUS_ERROR_NOT_SUPPORTED, "Remote control always requires fresh local consent");
++			}
++		} else {
++			ret = sd_bus_message_skip(msg, "v");
++		}
++		if (ret < 0) return ret;
++		ret = sd_bus_message_exit_container(msg);
++		if (ret < 0) return ret;
++	}
++	if (ret < 0) return ret;
++	if (!types || (types & ~7u) || !(types & state->remote_desktop_devices)) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_NOT_SUPPORTED, "Only native keyboard and pointer are available");
++	}
++	session->remote_devices = types & state->remote_desktop_devices;
++	session->remote_devices_selected = true;
++	return sd_bus_reply_method_return(msg, "ua{sv}", PORTAL_RESPONSE_SUCCESS, 0);
++}
++
++static int consent_request_close(sd_bus_message *msg, void *data, sd_bus_error *error) {
++	struct xdpw_remote_consent *consent = data;
++	if (!consent->session || !xdpw_remote_require_frontend(msg, consent->session)) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_ACCESS_DENIED, "Invalid request owner");
++	}
++	int ret = sd_bus_reply_method_return(msg, "");
++	consent_cancel(consent);
++	return ret;
++}
++
++static const sd_bus_vtable consent_request_vtable[] = {
++	SD_BUS_VTABLE_START(0),
++	SD_BUS_METHOD("Close", "", "", consent_request_close, SD_BUS_VTABLE_UNPRIVILEGED),
++	SD_BUS_VTABLE_END,
++};
++
++static void consent_poll(void *data) {
++	struct xdpw_remote_consent *consent = data;
++	consent->timer = NULL;
++	int status = 0;
++	pid_t result = waitpid(consent->child, &status, WNOHANG);
++	if (result < 0 && errno == EINTR) result = 0;
++	struct timespec now;
++	clock_gettime(CLOCK_MONOTONIC, &now);
++	if (result == 0) {
++		if (now.tv_sec >= consent->deadline.tv_sec) {
++			consent_cancel(consent);
++		}
++		consent->timer = xdpw_add_timer(consent->state, 100000000, consent_poll, consent);
++		if (!consent->timer) {
++			consent_cancel(consent);
++			while (waitpid(consent->child, NULL, 0) < 0 && errno == EINTR) {}
++			free(consent);
++		}
++		return;
++	}
++	struct xdpw_session *session = consent->session;
++	if (session) {
++		session->remote_consent = NULL;
++		if (result > 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0 &&
++				xdpw_remote_require_frontend(consent->message, session)) {
++			session->remote_input = rix_remote_input_manager_v1_create_session(
++				consent->state->screencast.remote_input_manager);
++			if (session->remote_input) {
++				rix_remote_input_session_v1_add_listener(session->remote_input, &input_listener, session);
++				session->remote_authorized = true;
++				if (wl_display_roundtrip(consent->state->wl_display) < 0 || !session->remote_authorized) {
++					session->remote_authorized = false;
++				}
++			}
++			if (session->remote_authorized) {
++				sd_bus_message_rewind(consent->message, true);
++				sd_bus_error error = SD_BUS_ERROR_NULL;
++				int ret = xdpw_screencast_start(consent->message, consent->state, &error);
++				if (ret < 0) {
++					if (sd_bus_error_is_set(&error)) {
++						sd_bus_reply_method_error(consent->message, &error);
++					} else {
++						sd_bus_reply_method_errorf(consent->message, SD_BUS_ERROR_FAILED, "Could not start the native screen stream");
++					}
++					if (session->remote_input) {
++						rix_remote_input_session_v1_destroy(session->remote_input);
++						session->remote_input = NULL;
++						wl_display_flush(consent->state->wl_display);
++					}
++					session->remote_authorized = false;
++				}
++				sd_bus_error_free(&error);
++			} else {
++				sd_bus_reply_method_return(consent->message, "ua{sv}", PORTAL_RESPONSE_ENDED, 0);
++			}
++		} else {
++			logprint(INFO, "remote-desktop: local consent denied or unavailable");
++			sd_bus_reply_method_return(consent->message, "ua{sv}", PORTAL_RESPONSE_CANCELLED, 0);
++		}
++	}
++	sd_bus_slot_unref(consent->slot);
++	sd_bus_message_unref(consent->message);
++	free(consent);
++}
++
++static int remote_start(sd_bus_message *msg, void *data, sd_bus_error *error) {
++	struct xdpw_state *state = data;
++	const char *request, *path, *app, *parent;
++	int ret = sd_bus_message_read(msg, "ooss", &request, &path, &app, &parent);
++	if (ret < 0) return ret;
++	struct xdpw_session *session;
++	if (!request_session(msg, state, path, app, &session)) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_ACCESS_DENIED, "Invalid remote session owner");
++	}
++	if (!session->remote_devices_selected || session->remote_consent || session->remote_authorized) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_FAILED, "Select devices before starting once");
++	}
++	struct xdpw_screencast_instance *cast = session->screencast_data.screencast_instance;
++	if (!cast || !cast->target || cast->target->type != MONITOR || !cast->target->output) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_NOT_SUPPORTED, "Select a monitor for native remote desktop control");
++	}
++	const char *command = state->config->screencast_conf.remote_control_cmd;
++	if (!state->screencast.remote_input_manager || !command || !*command) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_NOT_SUPPORTED, "Native remote input or its consent dialog is unavailable");
++	}
++	struct xdpw_remote_consent *consent = calloc(1, sizeof(*consent));
++	if (!consent) return -ENOMEM;
++	consent->state = state;
++	consent->session = session;
++	consent->message = sd_bus_message_ref(msg);
++	ret = sd_bus_add_object_vtable(state->bus, &consent->slot, request,
++		"org.freedesktop.impl.portal.Request", consent_request_vtable, consent);
++	if (ret < 0) {
++		sd_bus_message_unref(consent->message);
++		free(consent);
++		return ret;
++	}
++	char devices[16];
++	snprintf(devices, sizeof(devices), "%u", session->remote_devices);
++	/* PipeWire owns threads: never run libc/environment code between fork and
++	 * exec. Build argv/environment and file actions here, then use posix_spawnp. */
++	size_t environment_count = 0;
++	while (environ[environment_count]) environment_count++;
++	char **environment = calloc(environment_count + 1, sizeof(char *));
++	if (!environment) ret = ENOMEM;
++	if (environment) {
++		size_t next = 0;
++		for (size_t i = 0; i < environment_count; i++) {
++			if (strncmp(environ[i], "WAYLAND_SOCKET=", 15) != 0) {
++				environment[next++] = environ[i];
++			}
++		}
++		ret = 0;
++	}
++	posix_spawn_file_actions_t actions;
++	posix_spawnattr_t attributes;
++	bool actions_ready = false, attributes_ready = false;
++	if (!ret) {
++		ret = posix_spawn_file_actions_init(&actions);
++		actions_ready = !ret;
++	}
++	if (!ret) {
++		ret = posix_spawnattr_init(&attributes);
++		attributes_ready = !ret;
++	}
++	if (!ret) ret = posix_spawnattr_setpgroup(&attributes, 0);
++	if (!ret) ret = posix_spawnattr_setflags(&attributes, POSIX_SPAWN_SETPGROUP);
++	if (!ret) ret = posix_spawn_file_actions_addclose(&actions, wl_display_get_fd(state->wl_display));
++	if (!ret) ret = posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0);
++	if (!ret) {
++		consent->timer = xdpw_add_timer(state, 100000000, consent_poll, consent);
++		if (!consent->timer) ret = ENOMEM;
++	}
++	pid_t child = -1;
++	char *const argv[] = {(char *)command, (char *)app, devices, NULL};
++	if (!ret) ret = posix_spawnp(&child, command, &actions, &attributes, argv, environment);
++	if (actions_ready) posix_spawn_file_actions_destroy(&actions);
++	if (attributes_ready) posix_spawnattr_destroy(&attributes);
++	free(environment);
++	if (ret) {
++		if (consent->timer) xdpw_destroy_timer(consent->timer);
++		sd_bus_slot_unref(consent->slot);
++		sd_bus_message_unref(consent->message);
++		free(consent);
++		return -ret;
++	}
++	consent->child = child;
++	clock_gettime(CLOCK_MONOTONIC, &consent->deadline);
++	consent->deadline.tv_sec += 180;
++	session->remote_consent = consent;
++	return 1; /* Deferred method reply after the explicit local consent result. */
++}
++
++static int notify_session(sd_bus_message *msg, struct xdpw_state *state,
++		uint32_t device, struct xdpw_session **out, sd_bus_error *error) {
++	const char *path;
++	int ret = sd_bus_message_read(msg, "o", &path);
++	if (ret < 0) return ret;
++	struct xdpw_session *session;
++	if (!request_session(msg, state, path, NULL, &session) || !session->remote_authorized ||
++			!session->remote_input || !(session->remote_devices & device)) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_ACCESS_DENIED, "Remote input is not authorized for this session and device");
++	}
++	ret = sd_bus_message_skip(msg, "a{sv}");
++	if (ret < 0) return ret;
++	*out = session;
++	return 0;
++}
++
++static bool finite_fixed(double value) {
++	return isfinite(value) && value > -8388608.0 && value < 8388607.0;
++}
++
++static int input_sent(sd_bus_message *msg, struct xdpw_session *session) {
++	if (wl_display_flush(session->state->wl_display) < 0 && errno != EAGAIN) {
++		session->remote_authorized = false;
++		return sd_bus_reply_method_errorf(msg, SD_BUS_ERROR_FAILED, "Native input connection was lost");
++	}
++	return sd_bus_reply_method_return(msg, "");
++}
++
++static int notify_keycode(sd_bus_message *msg, void *data, sd_bus_error *error) {
++	struct xdpw_session *session;
++	int ret = notify_session(msg, data, XDPW_REMOTE_KEYBOARD, &session, error);
++	if (ret < 0) return ret;
++	int32_t code;
++	uint32_t state;
++	ret = sd_bus_message_read(msg, "iu", &code, &state);
++	if (ret < 0) return ret;
++	if (code <= 0 || code > 0x2ff || state > 1) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_INVALID_ARGS, "Invalid evdev keycode or key state");
++	}
++	rix_remote_input_session_v1_keycode(session->remote_input, code, state);
++	return input_sent(msg, session);
++}
++
++static int notify_keysym(sd_bus_message *msg, void *data, sd_bus_error *error) {
++	struct xdpw_session *session;
++	int ret = notify_session(msg, data, XDPW_REMOTE_KEYBOARD, &session, error);
++	if (ret < 0) return ret;
++	int32_t symbol;
++	uint32_t state;
++	ret = sd_bus_message_read(msg, "iu", &symbol, &state);
++	if (ret < 0) return ret;
++	if (symbol <= 0 || (uint32_t)symbol > 0x1fffffff || state > 1) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_INVALID_ARGS, "Invalid keysym or key state");
++	}
++	session->remote_keysym_unsupported = false;
++	rix_remote_input_session_v1_keysym(session->remote_input, symbol, state);
++	if (wl_display_roundtrip(session->state->wl_display) < 0 ||
++			!session->remote_authorized || !session->remote_input) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_FAILED, "Native input session was closed");
++	}
++	if (session->remote_keysym_unsupported) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_NOT_SUPPORTED, "The keysym cannot be represented by the active keyboard layout");
++	}
++	return input_sent(msg, session);
++}
++
++static int notify_motion(sd_bus_message *msg, void *data, sd_bus_error *error) {
++	struct xdpw_session *session;
++	int ret = notify_session(msg, data, XDPW_REMOTE_POINTER, &session, error);
++	if (ret < 0) return ret;
++	double x, y;
++	ret = sd_bus_message_read(msg, "dd", &x, &y);
++	if (ret < 0) return ret;
++	if (!finite_fixed(x) || !finite_fixed(y) || fabs(x) > 8192 || fabs(y) > 8192) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_INVALID_ARGS, "Invalid relative pointer motion");
++	}
++	rix_remote_input_session_v1_motion(session->remote_input, wl_fixed_from_double(x), wl_fixed_from_double(y));
++	return input_sent(msg, session);
++}
++
++static int notify_absolute(sd_bus_message *msg, void *data, sd_bus_error *error) {
++	struct xdpw_session *session;
++	int ret = notify_session(msg, data, XDPW_REMOTE_POINTER, &session, error);
++	if (ret < 0) return ret;
++	uint32_t node;
++	double x, y;
++	ret = sd_bus_message_read(msg, "udd", &node, &x, &y);
++	if (ret < 0) return ret;
++	struct xdpw_screencast_instance *cast = session->screencast_data.screencast_instance;
++	if (!cast || node != cast->node_id || !cast->target || !cast->target->output) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_INVALID_ARGS, "Unknown stream in this session");
++	}
++	struct xdpw_wlr_output *output = cast->target->output;
++	if (!isfinite(x) || !isfinite(y) || x < 0 || y < 0 || x >= output->width ||
++			y >= output->height || !finite_fixed(x + output->x) || !finite_fixed(y + output->y)) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_INVALID_ARGS, "Pointer coordinates must be inside the selected monitor in logical units");
++	}
++	rix_remote_input_session_v1_motion_absolute(session->remote_input,
++		wl_fixed_from_double(x + output->x), wl_fixed_from_double(y + output->y));
++	return input_sent(msg, session);
++}
++
++static int notify_button(sd_bus_message *msg, void *data, sd_bus_error *error) {
++	struct xdpw_session *session;
++	int ret = notify_session(msg, data, XDPW_REMOTE_POINTER, &session, error);
++	if (ret < 0) return ret;
++	int32_t button;
++	uint32_t state;
++	ret = sd_bus_message_read(msg, "iu", &button, &state);
++	if (ret < 0) return ret;
++	if (button < 0x110 || button > 0x117 || state > 1) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_INVALID_ARGS, "Invalid evdev pointer button or state");
++	}
++	rix_remote_input_session_v1_button(session->remote_input, button, state);
++	return input_sent(msg, session);
++}
++
++static int notify_axis(sd_bus_message *msg, void *data, sd_bus_error *error) {
++	struct xdpw_session *session;
++	int ret = notify_session(msg, data, XDPW_REMOTE_POINTER, &session, error);
++	if (ret < 0) return ret;
++	double x, y;
++	ret = sd_bus_message_read(msg, "dd", &x, &y);
++	if (ret < 0) return ret;
++	if (!finite_fixed(x) || !finite_fixed(y) || fabs(x) > 8192 || fabs(y) > 8192) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_INVALID_ARGS, "Invalid pointer scroll");
++	}
++	rix_remote_input_session_v1_axis(session->remote_input, wl_fixed_from_double(x), wl_fixed_from_double(y));
++	return input_sent(msg, session);
++}
++
++static int notify_discrete(sd_bus_message *msg, void *data, sd_bus_error *error) {
++	struct xdpw_session *session;
++	int ret = notify_session(msg, data, XDPW_REMOTE_POINTER, &session, error);
++	if (ret < 0) return ret;
++	uint32_t axis;
++	int32_t steps;
++	ret = sd_bus_message_read(msg, "ui", &axis, &steps);
++	if (ret < 0) return ret;
++	if (axis > 1 || steps < -1024 || steps > 1024) {
++		return sd_bus_error_set_const(error, SD_BUS_ERROR_INVALID_ARGS, "Invalid discrete pointer scroll");
++	}
++	rix_remote_input_session_v1_axis_discrete(session->remote_input, axis, steps);
++	return input_sent(msg, session);
++}
++
++static const sd_bus_vtable remote_vtable[] = {
++	SD_BUS_VTABLE_START(0),
++	SD_BUS_METHOD("CreateSession", "oosa{sv}", "ua{sv}", xdpw_screencast_create_session, SD_BUS_VTABLE_UNPRIVILEGED),
++	SD_BUS_METHOD("SelectDevices", "oosa{sv}", "ua{sv}", select_devices, SD_BUS_VTABLE_UNPRIVILEGED),
++	SD_BUS_METHOD("Start", "oossa{sv}", "ua{sv}", remote_start, SD_BUS_VTABLE_UNPRIVILEGED),
++	SD_BUS_METHOD("NotifyKeyboardKeycode", "oa{sv}iu", "", notify_keycode, SD_BUS_VTABLE_UNPRIVILEGED),
++	SD_BUS_METHOD("NotifyKeyboardKeysym", "oa{sv}iu", "", notify_keysym, SD_BUS_VTABLE_UNPRIVILEGED),
++	SD_BUS_METHOD("NotifyPointerMotion", "oa{sv}dd", "", notify_motion, SD_BUS_VTABLE_UNPRIVILEGED),
++	SD_BUS_METHOD("NotifyPointerMotionAbsolute", "oa{sv}udd", "", notify_absolute, SD_BUS_VTABLE_UNPRIVILEGED),
++	SD_BUS_METHOD("NotifyPointerButton", "oa{sv}iu", "", notify_button, SD_BUS_VTABLE_UNPRIVILEGED),
++	SD_BUS_METHOD("NotifyPointerAxis", "oa{sv}dd", "", notify_axis, SD_BUS_VTABLE_UNPRIVILEGED),
++	SD_BUS_METHOD("NotifyPointerAxisDiscrete", "oa{sv}ui", "", notify_discrete, SD_BUS_VTABLE_UNPRIVILEGED),
++	SD_BUS_PROPERTY("AvailableDeviceTypes", "u", NULL, offsetof(struct xdpw_state, remote_desktop_devices), SD_BUS_VTABLE_PROPERTY_CONST),
++	SD_BUS_PROPERTY("version", "u", NULL, offsetof(struct xdpw_state, remote_desktop_version), SD_BUS_VTABLE_PROPERTY_CONST),
++	SD_BUS_VTABLE_END,
++};
++
++static int frontend_owner_changed(sd_bus_message *msg, void *data, sd_bus_error *error) {
++	struct xdpw_state *state = data;
++	const char *name, *old, *new_owner;
++	int ret = sd_bus_message_read(msg, "sss", &name, &old, &new_owner);
++	if (ret < 0) return ret;
++	if (!*old) return 0;
++	struct xdpw_session *session, *tmp;
++	wl_list_for_each_safe(session, tmp, &state->xdpw_sessions, link) {
++		if (session->remote_desktop && session->remote_portal_owner &&
++				strcmp(session->remote_portal_owner, old) == 0) {
++			xdpw_session_destroy(session);
++		}
++	}
++	return 0;
++}
++
++int xdpw_remote_desktop_init(struct xdpw_state *state) {
++	state->remote_desktop_version = 1;
++	state->remote_desktop_devices = state->screencast.remote_input_manager ?
++		XDPW_REMOTE_KEYBOARD | XDPW_REMOTE_POINTER : 0;
++	int ret = sd_bus_add_object_vtable(state->bus, NULL, desktop_path,
++		XDPW_REMOTE_INTERFACE, remote_vtable, state);
++	if (ret < 0) return ret;
++	return sd_bus_add_match(state->bus, &state->remote_owner_slot,
++		"type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='org.freedesktop.portal.Desktop'",
++		frontend_owner_changed, state);
++}
+diff --git a/src/screencast/screencast.c b/src/screencast/screencast.c
+--- a/src/screencast/screencast.c
++++ b/src/screencast/screencast.c
+@@ -14,6 +14,7 @@
+ #include "wlr_screencast.h"
+ #include "xdpw.h"
+ #include "logger.h"
++#include "remote_desktop.h"
+ 
+ static const char object_path[] = "/org/freedesktop/portal/desktop";
+ static const char interface_name[] = "org.freedesktop.impl.portal.ScreenCast";
+@@ -244,9 +245,13 @@
+ 	return 0;
+ }
+ 
+-static int method_screencast_create_session(sd_bus_message *msg, void *data,
++int xdpw_screencast_create_session(sd_bus_message *msg, void *data,
+ 		sd_bus_error *ret_error) {
+ 	struct xdpw_state *state = data;
++	bool remote = strcmp(sd_bus_message_get_interface(msg), XDPW_REMOTE_INTERFACE) == 0;
++	if (remote && !xdpw_remote_require_frontend(msg, NULL)) {
++		return sd_bus_error_set_const(ret_error, SD_BUS_ERROR_ACCESS_DENIED, "Only the desktop portal may create a remote session");
++	}
+ 
+ 	int ret = 0;
+ 
+@@ -309,6 +314,13 @@
+ 	if (sess == NULL) {
+ 		return -ENOMEM;
+ 	}
++	if (remote) {
++		ret = xdpw_remote_session_configure(sess, msg, app_id);
++		if (ret < 0) {
++			xdpw_session_destroy(sess);
++			return ret;
++		}
++	}
+ 
+ 	sd_bus_message *reply = NULL;
+ 	ret = sd_bus_message_new_method_return(msg, &reply);
+@@ -334,7 +346,7 @@
+ 	struct xdpw_screencast_context *ctx = &state->screencast;
+ 
+ 	int ret = 0;
+-	struct xdpw_session *sess, *tmp_s;
++	struct xdpw_session *sess;
+ 	sd_bus_message *reply = NULL;
+ 
+ 	logprint(INFO, "dbus: select sources method invoked");
+@@ -353,16 +365,16 @@
+ 	logprint(INFO, "dbus: session_handle: %s", session_handle);
+ 	logprint(INFO, "dbus: app_id: %s", app_id);
+ 
+-	sess = NULL;
+-	wl_list_for_each_reverse_safe(sess, tmp_s, &state->xdpw_sessions, link) {
+-		if (strcmp(sess->session_handle, session_handle) == 0) {
+-				logprint(DEBUG, "dbus: select sources: found matching session %s", sess->session_handle);
+-				break;
+-		}
+-	}
++	sess = xdpw_remote_find_session(state, session_handle);
+ 	if (!sess) {
+-		logprint(WARN, "dbus: select sources: no matching session %s found", sess->session_handle);
+-		goto error;
++		return sd_bus_error_set_const(ret_error, SD_BUS_ERROR_ACCESS_DENIED, "Unknown session");
++	}
++	if (sess->remote_desktop && (!xdpw_remote_require_frontend(msg, sess)
++			|| strcmp(sess->remote_app_id, app_id) != 0)) {
++		return sd_bus_error_set_const(ret_error, SD_BUS_ERROR_ACCESS_DENIED, "Remote session belongs to another portal or application");
++	}
++	if (sess->remote_desktop && (sess->remote_consent || sess->remote_authorized)) {
++		return sd_bus_error_set_const(ret_error, SD_BUS_ERROR_FAILED, "Remote session already starting or started");
+ 	}
+ 
+ 	// default to embedded cursor mode if not specified
+@@ -533,7 +545,7 @@
+ 	return -1;
+ }
+ 
+-static int method_screencast_start(sd_bus_message *msg, void *data,
++int xdpw_screencast_start(sd_bus_message *msg, void *data,
+ 		sd_bus_error *ret_error) {
+ 	struct xdpw_state *state = data;
+ 
+@@ -590,6 +602,12 @@
+ 	if (!cast) {
+ 		return -1;
+ 	}
++	if (sess->remote_desktop && (!xdpw_remote_require_frontend(msg, sess)
++			|| strcmp(sess->remote_app_id, app_id) != 0
++			|| strcmp(sd_bus_message_get_interface(msg), XDPW_REMOTE_INTERFACE) != 0
++			|| !sess->remote_authorized)) {
++		return sd_bus_error_set_const(ret_error, SD_BUS_ERROR_ACCESS_DENIED, "Remote control was not authorized");
++	}
+ 
+ 	if (!cast->initialized) {
+ 		ret = start_screencast(cast);
+@@ -620,6 +638,12 @@
+ 	ret = sd_bus_message_open_container(reply, 'a', "{sv}");
+ 	if (ret < 0) {
+ 		return ret;
++	}
++	if (sess->remote_desktop) {
++		ret = sd_bus_message_append(reply, "{sv}", "devices", "u", sess->remote_devices);
++		if (ret < 0) {
++			return ret;
++		}
+ 	}
+ 	ret = sd_bus_message_open_container(reply, 'e', "sv");
+ 	if (ret < 0) {
+@@ -719,11 +743,11 @@
+ static const sd_bus_vtable screencast_vtable[] = {
+ 	SD_BUS_VTABLE_START(0),
+ 	SD_BUS_METHOD("CreateSession", "oosa{sv}", "ua{sv}",
+-		method_screencast_create_session, SD_BUS_VTABLE_UNPRIVILEGED),
++		xdpw_screencast_create_session, SD_BUS_VTABLE_UNPRIVILEGED),
+ 	SD_BUS_METHOD("SelectSources", "oosa{sv}", "ua{sv}",
+ 		method_screencast_select_sources, SD_BUS_VTABLE_UNPRIVILEGED),
+ 	SD_BUS_METHOD("Start", "oossa{sv}", "ua{sv}",
+-		method_screencast_start, SD_BUS_VTABLE_UNPRIVILEGED),
++		xdpw_screencast_start, SD_BUS_VTABLE_UNPRIVILEGED),
+ 	SD_BUS_PROPERTY("AvailableSourceTypes", "u", NULL,
+ 		offsetof(struct xdpw_state, screencast_source_types),
+ 		SD_BUS_VTABLE_PROPERTY_CONST),
+@@ -753,8 +777,12 @@
+ 		goto fail_screencopy;
+ 	}
+ 
+-	return sd_bus_add_object_vtable(state->bus, &slot, object_path, interface_name,
++	err = sd_bus_add_object_vtable(state->bus, &slot, object_path, interface_name,
+ 		screencast_vtable, state);
++	if (err < 0) {
++		return err;
++	}
++	return xdpw_remote_desktop_init(state);
+ 
+ fail_screencopy:
+ 	xdpw_wlr_screencopy_finish(&state->screencast);
+diff --git a/src/screencast/wlr_screencast.c b/src/screencast/wlr_screencast.c
+--- a/src/screencast/wlr_screencast.c
++++ b/src/screencast/wlr_screencast.c
+@@ -6,6 +6,7 @@
+ #include "ext-image-capture-source-v1-client-protocol.h"
+ #include "ext-image-copy-capture-v1-client-protocol.h"
+ #include "ext-foreign-toplevel-list-v1-client-protocol.h"
++#include "rix-remote-input-v1-client-protocol.h"
+ #include <drm_fourcc.h>
+ #include <fcntl.h>
+ #include <limits.h>
+@@ -479,6 +480,10 @@
+ 	struct xdpw_screencast_context *ctx = data;
+ 
+ 	logprint(DEBUG, "wlroots: interface to register %s  (Version: %u)",interface, ver);
++	if (strcmp(interface, rix_remote_input_manager_v1_interface.name) == 0) {
++		ctx->remote_input_manager = wl_registry_bind(reg, id,
++			&rix_remote_input_manager_v1_interface, 1);
++	}
+ 	if (!strcmp(interface, wl_output_interface.name)) {
+ 		struct xdpw_wlr_output *output = calloc(1, sizeof(*output));
+ 
+@@ -678,6 +683,9 @@
+ 	if (ctx->screencopy_manager) {
+ 		zwlr_screencopy_manager_v1_destroy(ctx->screencopy_manager);
+ 	}
++	if (ctx->remote_input_manager) {
++		rix_remote_input_manager_v1_destroy(ctx->remote_input_manager);
++	}
+ 	if (ctx->ext_image_copy_capture_manager) {
+ 		ext_image_copy_capture_manager_v1_destroy(ctx->ext_image_copy_capture_manager);
+ 	}

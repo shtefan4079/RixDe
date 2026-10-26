@@ -1,0 +1,9 @@
+[
+  {"action":"applications","label":"Applications","icon":"applications-all","end":false,"icon_only":false},
+  {"action":"places","label":"Places","icon":"folder","end":false,"icon_only":false},
+  {"action":"suspend","label":"Sleep","icon":"system-suspend","end":true,"icon_only":false},
+  {"action":"hibernate","label":"Hibernate","icon":"system-suspend-hibernate","end":true,"icon_only":false},
+  {"action":"reboot","label":"Restart","icon":"system-reboot","end":true,"icon_only":false},
+  {"action":"poweroff","label":"Power Off","icon":"system-shutdown","end":true,"icon_only":false},
+  {"action":"leave","label":"Log Out","icon":"go-next","end":true,"icon_only":true}
+]

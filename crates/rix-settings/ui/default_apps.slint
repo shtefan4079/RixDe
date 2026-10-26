@@ -1,0 +1,97 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { LineEdit } from "../../../ui/common/line_edit.slint";
+import { Button } from "std-widgets.slint";
+import { ApplicationChooserPanel, ChooserButton } from "../../../ui/common/application_chooser.slint";
+import { SettingsCard, SettingsRow, SettingsDivider } from "card.slint";
+
+export struct DefaultAppGroup { id: string, icon: image, label: string, detail: string, application: string }
+
+export global DefaultAppsSettings {
+    in-out property <[DefaultAppGroup]> groups;
+    in-out property <string> status;
+    in-out property <bool> busy;
+    in-out property <string> custom-mime;
+    in-out property <bool> chooser-visible;
+    callback choose(string);
+}
+
+export component DefaultAppsView inherits Rectangle {
+    background: transparent;
+    preferred-height: content.preferred-height;
+    content := VerticalLayout {
+        spacing: 16px;
+
+        SettingsCard {
+            title: @tr("Default applications");
+            subtitle: @tr("Choose preferred programs for web browsing, mail, media and file management");
+
+            for group[index] in DefaultAppsSettings.groups: VerticalLayout {
+                spacing: 0px;
+                if index > 0: SettingsDivider {}
+                SettingsRow {
+                    title: group.label;
+                    subtitle: group.detail;
+                    HorizontalLayout {
+                        spacing: 10px; alignment: center;
+                        Rectangle {
+                            width: 28px; height: 28px; border-radius: 6px;
+                            background: Theme.control-surface;
+                            Image { source: group.icon; width: 18px; height: 18px; x: 5px; y: 5px; image-fit: contain; }
+                        }
+                        Text {
+                            text: group.application != "" ? group.application : @tr("None");
+                            color: Theme.text-primary; font-weight: 500; font-size: 13px;
+                            max-width: 280px; overflow: elide; vertical-alignment: center;
+                        }
+                        Button {
+                            text: @tr("Change…");
+                            enabled: !DefaultAppsSettings.busy;
+                            clicked => { DefaultAppsSettings.choose(group.id); }
+                        }
+                    }
+                }
+            }
+        }
+
+        SettingsCard {
+            title: @tr("File associations by MIME type");
+            subtitle: @tr("Set the default program for custom file formats (e.g. application/pdf)");
+
+            SettingsRow {
+                title: @tr("MIME type");
+                subtitle: @tr("Standard format identifier");
+                HorizontalLayout {
+                    spacing: 8px;
+                    LineEdit {
+                        placeholder-text: "application/pdf";
+                        text <=> DefaultAppsSettings.custom-mime;
+                        enabled: !DefaultAppsSettings.busy;
+                        min-width: 200px;
+                        accepted(_) => { DefaultAppsSettings.choose("custom"); }
+                    }
+                    Button {
+                        text: @tr("Choose application…");
+                        enabled: !DefaultAppsSettings.busy;
+                        clicked => { DefaultAppsSettings.choose("custom"); }
+                    }
+                }
+            }
+        }
+
+        if DefaultAppsSettings.status != "": Text {
+            text: DefaultAppsSettings.status; color: Theme.text-secondary; wrap: word-wrap;
+        }
+    }
+
+    if DefaultAppsSettings.chooser-visible: Rectangle {
+        x: 0; y: 0; width: root.width; height: 520px;
+        background: Theme.window-background.with-alpha(0.85);
+        TouchArea { }
+        chooser := ApplicationChooserPanel {
+            width: Math.min(620px, parent.width - Theme.default-spacing * 2);
+            height: parent.height - Theme.default-spacing * 2;
+            x: (parent.width - self.width) / 2; y: Theme.default-spacing;
+            init => { self.focus-chooser(); }
+        }
+    }
+}

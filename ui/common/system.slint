@@ -1,0 +1,464 @@
+import { Slider, ToggleSwitch } from "controls.slint";
+import { Theme } from "theme.slint";
+import { Icons } from "icons.slint";
+import { ScrollArea } from "scroll_area.slint";
+import { Button, CheckBox } from "std-widgets.slint";
+import { ComboBox } from "combo_box.slint";
+import { LineEdit } from "line_edit.slint";
+import { NetworkDeviceRow, NetworkProfileDraft } from "network_types.slint";
+export { NetworkDeviceRow, NetworkProfileDraft }
+import { NetworkProfileEditor } from "network_profile.slint";
+export struct AudioRow { app-id: string, binary: string, key: string, name: string, icon: image, kind: string, volume: int, muted: bool, preferred: bool }
+export struct NetworkRow { path: string, name: string, detail: string, icon: image, strength: int, active: bool, saved: bool, password: bool, supported: bool, busy: bool, device: string, iface: string, security: string, available: bool, wired: bool, editable: bool, error: string }
+export struct CalendarDay { text: string, date: string, today: bool, current: bool, selected: bool }
+export struct KeyboardRow { label: string, name: string, active: bool }
+export global SystemState {
+    in-out property <int> week-start;
+    in-out property <[AudioRow]> audio;
+    in-out property <string> audio-error;
+    in-out property <int> maximum-volume: 100;
+    in-out property <image> audio-icon;
+    callback audio-changed();
+    callback audio-volume(string, int);
+    callback audio-mute(string, bool);
+    callback audio-default(string);
+    in-out property <[NetworkRow]> networks;
+    in-out property <bool> wifi-enabled;
+    in-out property <bool> wifi-hardware;
+    in-out property <bool> network-has-wifi;
+    in-out property <string> network-error;
+    in-out property <string> connectivity;
+    in-out property <image> network-icon;
+    callback wifi-toggle(bool);
+    callback network-refresh();
+    callback network-connect(string, string, bool);
+    callback network-disconnect(string);
+    callback network-forget(string);
+    callback network-visible(bool);
+    in-out property <bool> network-service-ready;
+    in-out property <bool> networking-enabled;
+    in-out property <bool> network-can-networking;
+    in-out property <bool> network-can-scan;
+    in-out property <bool> network-can-toggle;
+    in-out property <bool> network-can-connect;
+    in-out property <bool> network-can-edit;
+    in-out property <bool> network-can-save-own;
+    in-out property <bool> network-can-save-shared;
+    in-out property <bool> network-scanning;
+    in-out property <bool> network-secret-agent;
+    in-out property <string> network-status;
+    in-out property <string> network-icon-label;
+    in-out property <string> network-active-name;
+    in-out property <bool> network-traffic-visible;
+    in-out property <string> network-download-rate: "—";
+    in-out property <string> network-upload-rate: "—";
+    in-out property <bool> network-portal;
+    in-out property <[NetworkDeviceRow]> network-devices;
+    in-out property <[string]> network-device-names;
+    in-out property <int> network-device-index;
+    in-out property <[NetworkRow]> network-profiles;
+    in-out property <string> network-search;
+    in-out property <string> network-form-target;
+    in-out property <int> network-form-state;
+    in-out property <string> network-form-error;
+    in-out property <NetworkProfileDraft> network-profile-draft;
+    in-out property <bool> network-profile-editing;
+    in-out property <bool> network-profile-busy;
+    in-out property <string> network-editor-request;
+    in-out property <string> network-credential-id;
+    in-out property <string> network-credential-name;
+    in-out property <string> network-credential-message;
+    in-out property <string> network-credential-password-label;
+    in-out property <bool> network-credential-username;
+    in-out property <bool> network-credential-password;
+    in-out property <bool> network-credential-key-password;
+    in-out property <bool> network-credential-extra;
+    in-out property <int> network-credential-failed;
+    callback networking-toggle(bool);
+    callback network-search-changed(string);
+    callback network-select-device(int);
+    callback network-validate-password(string, string) -> string;
+    callback network-cancel(string);
+    callback network-reset-error();
+    callback network-check-connectivity();
+    callback network-open-portal();
+    callback network-edit-profile(string);
+    callback network-new-profile(string);
+    callback network-close-profile();
+    callback network-save-profile(NetworkProfileDraft, bool, bool, bool);
+    callback network-import-profile(string, string);
+    callback network-reply-secrets(string, string, string, string, string, bool) -> bool;
+    callback network-show-prompt();
+    in-out property <[KeyboardRow]> layouts;
+    in-out property <string> layout-label;
+    callback keyboard-select(int);
+    callback keyboard-settings();
+    in-out property <[CalendarDay]> days;
+    in-out property <string> month;
+    in-out property <string> selected-date;
+    in-out property <string> today-date;
+    in-out property <[string]> weekdays;
+    callback calendar-month(int);
+    callback calendar-select(string);
+    callback calendar-today();
+    callback open-settings(string);
+}
+export component IconButton inherits Rectangle {
+    in property <image> icon;
+    in property <bool> selected;
+    callback clicked();
+    forward-focus: keys;
+    accessible-role: button;
+    accessible-action-default => { root.clicked(); }
+    width: Theme.menu-action-size + Theme.spacing-xs;
+    height: self.width;
+    border-radius: Theme.radius-sm;
+    background: touch.has-hover ? Theme.surface-hover : root.selected ? Theme.surface-active : transparent;
+    animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+    Image { source: root.icon; width: Theme.icon-size; height: self.width; x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2; image-fit: contain; colorize: Theme.text-primary; }
+    keys := FocusScope { key-pressed(event) => { if event.text == Key.Return || event.text == " " { root.clicked(); return accept; } reject } }
+    touch := TouchArea { mouse-cursor: pointer; clicked => { keys.focus(); root.clicked(); } }
+}
+export component SectionTitle inherits Text { color: Theme.text-primary; font-size: Theme.font-size-lg; font-weight: 600; }
+export component MutedText inherits Text { color: Theme.text-secondary; font-size: Theme.font-size-md; wrap: word-wrap; }
+component AudioDevice inherits Rectangle {
+    in property <AudioRow> entry;
+    height: Theme.audio-row-height;
+    vertical-stretch: 0;
+    background: entry.preferred ? Theme.surface-active : Theme.control-surface;
+    border-width: 1px; border-color: Theme.control-border;
+    border-radius: Theme.radius-md;
+    VerticalLayout {
+        padding: Theme.spacing-lg; spacing: Theme.default-spacing;
+        HorizontalLayout {
+            spacing: Theme.default-spacing;
+            Image { source: root.entry.icon; width: Theme.icon-size-lg; height: Theme.icon-size-lg; image-fit: contain; colorize: Theme.text-primary; }
+            Text { text: root.entry.name; color: Theme.text-primary; font-size: Theme.font-size-md; overflow: elide; vertical-alignment: center; horizontal-stretch: 1; }
+            if root.entry.kind == "sink" || root.entry.kind == "source": Button { text: root.entry.preferred ? @tr("Default") : @tr("Select"); enabled: !root.entry.preferred; clicked => { SystemState.audio-default(root.entry.key); } }
+        }
+        HorizontalLayout {
+            spacing: Theme.default-spacing;
+            IconButton { icon: root.entry.icon; selected: root.entry.muted; clicked => { SystemState.audio-mute(root.entry.key, !root.entry.muted); } }
+            Slider { horizontal-stretch: 1; minimum: 0; maximum: SystemState.maximum-volume; value: root.entry.volume; changed(value) => { SystemState.audio-volume(root.entry.key, round(value)); } }
+            Text { text: root.entry.volume + "%"; color: root.entry.muted ? Theme.text-muted : Theme.text-primary; font-size: Theme.font-size-md; width: 44px; vertical-alignment: center; horizontal-alignment: right; }
+        }
+    }
+}
+export component AudioView inherits Rectangle {
+    in property <bool> full-mode: false;
+    in-out property <int> tab;
+    VerticalLayout {
+        padding: root.full-mode ? 0px : Theme.spacing-xl;
+        spacing: Theme.spacing-lg;
+        if !root.full-mode: HorizontalLayout {
+            SectionTitle { text: @tr("Volume"); horizontal-stretch: 1; vertical-alignment: center; }
+            IconButton { icon: Icons.configure; clicked => { SystemState.open-settings("audio"); } }
+        }
+        HorizontalLayout {
+            for title[index] in [@tr("Devices"), @tr("Applications")]: Button { text: title; primary: root.tab == index; clicked => { root.tab = index; } }
+        }
+        ScrollArea {
+            min-height: root.full-mode ? contents.preferred-height : 0px;
+            vertical-stretch: root.full-mode ? 0 : 1;
+            content-height: contents.preferred-height;
+            contents := VerticalLayout {
+                x: 0px; y: 0px; width: parent.content-width; height: self.preferred-height; spacing: Theme.default-spacing; alignment: start;
+                for group in ["sink", "source", "sink-input", "source-output"]: VerticalLayout {
+                    spacing: Theme.default-spacing;
+                    if root.tab == (group == "sink" || group == "source" ? 0 : 1): VerticalLayout {
+                        spacing: Theme.default-spacing;
+                        MutedText { text: group == "sink" ? @tr("Audio output") : group == "source" ? @tr("Microphones") : group == "sink-input" ? @tr("Playback") : @tr("Record"); }
+                        for row in SystemState.audio: VerticalLayout { if row.kind == group: AudioDevice { entry: row; } }
+                    }
+                }
+                if SystemState.audio.length == 0: MutedText { text: @tr("Audio devices are not available yet"); }
+            }
+        }
+        if SystemState.audio-error != "": MutedText { text: SystemState.audio-error; color: Theme.danger; }
+
+    }
+}
+export component NetworkView inherits Rectangle {
+    in property <bool> full-mode: false;
+    in property <bool> active: true;
+    out property <bool> password-prompt-open: root.asking-password;
+    private property <int> tab;
+    private property <bool> importing;
+    private property <bool> import-submitted;
+    private property <string> import-path;
+    private property <int> import-kind;
+    private property <bool> profile-busy: SystemState.network-profile-busy;
+    private property <string> selected;
+    private property <string> selected-name;
+    private property <string> selected-security;
+    private property <bool> needs-password: root.selected-security != "open" && root.selected-security != "owe" && root.selected-security != "owe-transition";
+    private property <bool> asking-password;
+    private property <bool> show-password;
+    private property <bool> remember: true;
+    private property <string> password;
+    private property <string> password-error;
+    private property <bool> submitted;
+    private property <string> forget-target;
+    private property <string> secret-username;
+    private property <string> secret-password;
+    private property <string> secret-key-password;
+    private property <string> secret-extra;
+    private property <bool> secret-show;
+    private property <bool> secret-submitted;
+    private property <int> credential-failed: SystemState.network-credential-failed;
+    private property <string> credential-id: SystemState.network-credential-id;
+    private property <int> form-state: SystemState.network-form-state;
+    function reset-password() {
+        root.password = ""; root.password-error = ""; root.show-password = false;
+        root.asking-password = false; root.submitted = false; root.selected = "";
+        SystemState.network-form-target = ""; SystemState.network-form-state = 0;
+    }
+    public function begin-password(path: string, name: string, security: string) {
+        root.reset-password(); root.selected = path; root.selected-name = name;
+        root.selected-security = security; root.remember = true;
+        SystemState.network-form-target = path;
+        root.asking-password = true; SystemState.network-reset-error();
+    }
+    function submit-password() {
+        if root.submitted { return; }
+        root.password-error = SystemState.network-validate-password(root.selected-security, root.password);
+        if root.password-error == "" {
+            root.submitted = true;
+            SystemState.network-connect(root.selected, root.password, root.remember);
+        }
+    }
+    function cancel-password() {
+        if root.submitted { SystemState.network-cancel(root.selected); }
+        root.reset-password();
+    }
+    function reply-credentials(cancel: bool) {
+        if root.secret-submitted && !cancel { return; }
+        if !cancel && ((SystemState.network-credential-username && root.secret-username == "") || (SystemState.network-credential-password && root.secret-password == "" && (!SystemState.network-credential-extra || root.secret-extra == "")) || (SystemState.network-credential-key-password && root.secret-key-password == "")) { return; }
+        root.secret-submitted = SystemState.network-reply-secrets(SystemState.network-credential-id, root.secret-username, root.secret-password, root.secret-key-password, root.secret-extra, cancel);
+        if root.secret-submitted || cancel { root.secret-username = ""; root.secret-password = ""; root.secret-key-password = ""; root.secret-extra = ""; root.secret-show = false; }
+    }
+    changed profile-busy => {
+        if root.import-submitted && !root.profile-busy {
+            root.import-submitted = false;
+            if SystemState.network-error == "" { root.import-path = ""; root.importing = false; }
+        }
+    }
+    changed credential-failed => { root.secret-submitted = false; }
+    changed credential-id => {
+        root.secret-username = ""; root.secret-password = ""; root.secret-key-password = ""; root.secret-extra = "";
+        root.secret-show = false; root.secret-submitted = false;
+    }
+    changed form-state => {
+        if root.asking-password && root.selected == SystemState.network-form-target {
+            if root.form-state == 2 { root.reset-password(); }
+            if root.form-state == 3 { root.submitted = false; root.password-error = SystemState.network-form-error; }
+        }
+    }
+    changed active => {
+        if !root.active {
+            root.reset-password(); root.forget-target = "";
+            if SystemState.network-credential-id != "" { root.reply-credentials(true); }
+        }
+    }
+    VerticalLayout {
+        padding: root.full-mode ? 0px : Theme.spacing-xl; spacing: Theme.spacing-lg;
+        HorizontalLayout {
+            spacing: Theme.default-spacing;
+            SectionTitle { text: @tr("Networks"); horizontal-stretch: 1; vertical-alignment: center; }
+            if root.full-mode: ToggleSwitch { text: @tr("Networking"); checked: SystemState.networking-enabled; enabled: SystemState.network-service-ready && SystemState.network-can-networking; toggled => { SystemState.networking-toggle(self.checked); } }
+            if SystemState.network-has-wifi: ToggleSwitch { text: "Wi-Fi"; checked: SystemState.wifi-enabled; enabled: SystemState.network-service-ready && SystemState.wifi-hardware && SystemState.network-can-toggle; toggled => { SystemState.wifi-toggle(self.checked); } }
+            if !root.full-mode: IconButton { icon: Icons.configure; accessible-label: @tr("Network settings"); clicked => { SystemState.open-settings("network"); } }
+        }
+        if root.credential-id != "": ScrollArea {
+            vertical-stretch: root.full-mode ? 0 : 1; min-height: root.full-mode ? credential-form.preferred-height : 0px; content-height: credential-form.preferred-height;
+            credential-form := VerticalLayout {
+                x: 0px; y: 0px; width: parent.content-width; height: self.preferred-height; spacing: Theme.spacing-lg;
+                SectionTitle { text: SystemState.network-credential-name; wrap: word-wrap; }
+                MutedText { text: SystemState.network-credential-message; }
+                if SystemState.network-credential-username: LineEdit { init => { self.focus(); } text <=> root.secret-username; enabled: !root.secret-submitted; placeholder-text: @tr("Username"); accepted(value) => { root.reply-credentials(false); } }
+                if SystemState.network-credential-password: LineEdit { init => { if !SystemState.network-credential-username { self.focus(); } } text <=> root.secret-password; enabled: !root.secret-submitted; placeholder-text: SystemState.network-credential-password-label; input-type: root.secret-show ? InputType.text : InputType.password; accepted(value) => { root.reply-credentials(false); } }
+                if SystemState.network-credential-key-password: LineEdit { init => { if !SystemState.network-credential-username && !SystemState.network-credential-password { self.focus(); } } text <=> root.secret-key-password; enabled: !root.secret-submitted; placeholder-text: @tr("Private key password"); input-type: root.secret-show ? InputType.text : InputType.password; accepted(value) => { root.reply-credentials(false); } }
+                if SystemState.network-credential-extra: LineEdit { text <=> root.secret-extra; enabled: !root.secret-submitted; placeholder-text: @tr("VPN credentials: key=value or JSON"); input-type: root.secret-show ? InputType.text : InputType.password; accepted(value) => { root.reply-credentials(false); } }
+                CheckBox { text: @tr("Show password"); checked <=> root.secret-show; enabled: !root.secret-submitted; }
+                HorizontalLayout {
+                    Button { text: @tr("Cancel"); clicked => { root.reply-credentials(true); } }
+                    Button { text: root.secret-submitted ? @tr("Connecting…") : @tr("Continue"); primary: true; enabled: !root.secret-submitted && (!SystemState.network-credential-username || root.secret-username != "") && (!SystemState.network-credential-password || root.secret-password != "" || (SystemState.network-credential-extra && root.secret-extra != "")) && (!SystemState.network-credential-key-password || root.secret-key-password != ""); clicked => { root.reply-credentials(false); } }
+                }
+                if SystemState.network-error != "": MutedText { text: SystemState.network-error; color: Theme.danger; }
+            }
+        }
+        if root.credential-id == "" && root.full-mode && SystemState.network-profile-editing: NetworkProfileEditor {
+            vertical-stretch: 1;
+            draft <=> SystemState.network-profile-draft;
+            devices: SystemState.network-devices;
+            busy: SystemState.network-profile-busy;
+            permitted: SystemState.network-profile-draft.shared ? SystemState.network-can-save-shared : SystemState.network-can-save-own;
+            error: (SystemState.network-profile-draft.shared ? SystemState.network-can-save-shared : SystemState.network-can-save-own) ? SystemState.network-error : @tr("Editing network profiles is denied by system policy");
+            submitted(activate) => { SystemState.network-save-profile(self.draft, activate, self.draft.kind == "hotspot", self.draft.hidden); }
+            canceled => { SystemState.network-close-profile(); }
+        }
+        if root.credential-id == "" && !SystemState.network-profile-editing && root.asking-password: ScrollArea {
+            min-height: root.full-mode ? password-form.preferred-height : 0px; vertical-stretch: root.full-mode ? 0 : 1; content-height: password-form.preferred-height;
+            password-form := VerticalLayout {
+                x: 0px; y: 0px; width: parent.content-width; height: self.preferred-height; spacing: Theme.spacing-lg;
+                SectionTitle { text: root.selected-name; wrap: word-wrap; }
+                MutedText { text: root.needs-password ? @tr("Network password") : @tr("Connect to this network?"); }
+                if root.needs-password: LineEdit { init => { self.focus(); } text <=> root.password; enabled: !root.submitted; placeholder-text: @tr("Enter password"); input-type: root.show-password ? InputType.text : InputType.password; accepted(value) => { root.submit-password(); } key-pressed(event) => { if event.text == Key.Escape { root.cancel-password(); return accept; } reject } }
+                if root.needs-password: CheckBox { text: @tr("Show password"); checked <=> root.show-password; enabled: !root.submitted; }
+                CheckBox { text: @tr("Remember network"); checked <=> root.remember; enabled: !root.submitted; }
+                if root.password-error != "": MutedText { text: root.password-error; color: Theme.danger; }
+                HorizontalLayout {
+                    Button { text: root.submitted ? @tr("Cancel") : @tr("Back"); clicked => { root.cancel-password(); } }
+                    Button { text: root.submitted ? @tr("Connecting…") : @tr("Connect"); primary: true; enabled: !root.submitted && (!root.needs-password || root.password != ""); clicked => { root.submit-password(); } }
+                }
+            }
+        }
+        if root.credential-id == "" && !SystemState.network-profile-editing && !root.asking-password: VerticalLayout {
+            spacing: Theme.default-spacing;
+            HorizontalLayout {
+                spacing: Theme.default-spacing;
+                alignment: space-between;
+                if SystemState.network-active-name != "": Text {
+                    text: SystemState.network-active-name;
+                    color: Theme.text-primary;
+                    font-size: Theme.font-size-md;
+                    font-weight: 600;
+                    overflow: elide;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+                if SystemState.network-active-name == "": Rectangle {
+                    horizontal-stretch: 1;
+                }
+                if SystemState.network-has-wifi: Button {
+                    text: SystemState.network-scanning ? @tr("Scanning…") : @tr("Refresh");
+                    enabled: SystemState.network-service-ready && SystemState.wifi-enabled && SystemState.wifi-hardware && SystemState.network-can-scan && !SystemState.network-scanning;
+                    clicked => { SystemState.network-refresh(); }
+                }
+            }
+            if SystemState.network-status != "": MutedText { text: SystemState.network-status; }
+            if !root.full-mode && SystemState.network-service-ready && !SystemState.networking-enabled: Button { text: @tr("Enable networking"); enabled: SystemState.network-can-networking; clicked => { SystemState.networking-toggle(true); } }
+            if SystemState.network-portal: Button { enabled: SystemState.network-service-ready; text: @tr("Sign in to network"); clicked => { SystemState.network-open-portal(); } }
+            if root.full-mode: HorizontalLayout {
+                for title[index] in [@tr("Available networks"), @tr("Saved profiles")]: Button { text: title; primary: root.tab == index; clicked => { root.tab = index; } }
+                Rectangle { horizontal-stretch: 1; }
+                Button { text: @tr("Check connection"); enabled: SystemState.network-service-ready; clicked => { SystemState.network-check-connectivity(); } }
+            }
+            if root.full-mode && root.tab == 1: HorizontalLayout {
+                Button { text: @tr("Import connection…"); enabled: !SystemState.network-profile-busy; clicked => { root.importing = !root.importing; } }
+            }
+            if root.full-mode && root.importing: VerticalLayout {
+                spacing: Theme.default-spacing;
+                MutedText { text: @tr("Import a NetworkManager connection or VPN provider file"); }
+                LineEdit { text <=> root.import-path; placeholder-text: @tr("Configuration file path"); enabled: !SystemState.network-profile-busy; }
+                ComboBox { model: ["OpenVPN", "WireGuard", "NetworkManager", "VPNC", "OpenConnect", "StrongSwan", "PPTP", "L2TP"]; current-index <=> root.import-kind; enabled: !SystemState.network-profile-busy; }
+                Button { text: SystemState.network-profile-busy ? @tr("Importing…") : @tr("Import"); enabled: root.import-path != "" && SystemState.network-service-ready && SystemState.network-can-edit && !SystemState.network-profile-busy; clicked => { root.import-submitted = true; SystemState.network-import-profile(root.import-path, root.import-kind == 1 ? "wireguard" : root.import-kind == 2 ? "keyfile" : root.import-kind == 3 ? "vpnc" : root.import-kind == 4 ? "openconnect" : root.import-kind == 5 ? "strongswan" : root.import-kind == 6 ? "pptp" : root.import-kind == 7 ? "l2tp" : "openvpn"); } }
+            }
+            if SystemState.network-device-names.length > 2: ComboBox { model: SystemState.network-device-names; current-index: SystemState.network-device-index; selected(value) => { SystemState.network-select-device(self.current-index); } }
+            LineEdit { text: SystemState.network-search; placeholder-text: @tr("Search networks"); edited(value) => { SystemState.network-search-changed(value); } }
+            ScrollArea {
+                min-height: root.full-mode ? networks.preferred-height : 0px; vertical-stretch: root.full-mode ? 0 : 1; content-height: networks.preferred-height;
+                networks := VerticalLayout {
+                    x: 0px; y: 0px; width: parent.content-width; height: self.preferred-height; spacing: Theme.default-spacing; alignment: start;
+                    if SystemState.network-error != "": VerticalLayout {
+                        MutedText { text: SystemState.network-error; color: Theme.danger; }
+                        Button { text: @tr("Dismiss"); clicked => { SystemState.network-reset-error(); } }
+                    }
+                    for row in (root.full-mode && root.tab == 1 ? SystemState.network-profiles : SystemState.networks): Rectangle {
+                        height: details.preferred-height; vertical-stretch: 0;
+                        background: row.active ? Theme.surface-active : Theme.control-surface;
+                        border-width: 1px; border-color: Theme.control-border; border-radius: Theme.radius-md;
+                        details := VerticalLayout {
+                            padding: Theme.spacing-lg; spacing: Theme.default-spacing;
+                            HorizontalLayout {
+                                spacing: Theme.spacing-lg;
+                                Image { source: row.icon; width: Theme.icon-size-lg; height: Theme.icon-size-lg; image-fit: contain; colorize: Theme.text-primary; }
+                                VerticalLayout {
+                                    horizontal-stretch: 1; spacing: Theme.spacing-xs;
+                                    Text { text: row.name; color: Theme.text-primary; font-weight: 600; font-size: Theme.font-size-md; wrap: word-wrap; }
+                                    MutedText { text: row.detail; font-size: Theme.font-size-sm; }
+                                }
+                            }
+                            if row.error != "": MutedText { text: row.error; color: Theme.danger; }
+                            HorizontalLayout {
+                                spacing: Theme.default-spacing;
+                                if root.full-mode && row.saved: Button { text: @tr("Forget"); enabled: !row.busy && row.editable; clicked => { root.forget-target = row.path; } }
+                                if root.full-mode || row.security == "enterprise" || row.security == "wep": IconButton {
+                                    icon: Icons.configure; accessible-label: @tr("Edit network profile");
+                                    clicked => { if root.full-mode { SystemState.network-edit-profile(row.path); } else { SystemState.open-settings("network:" + row.path); } }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                                Button {
+                                    text: row.active ? @tr("Disconnect") : row.busy ? @tr("Cancel") : row.supported ? @tr("Connect") : @tr("Configure");
+                                    enabled: SystemState.network-service-ready && (row.busy || (!row.supported && SystemState.network-can-edit) || (SystemState.network-can-connect && (row.active || (row.supported && SystemState.networking-enabled && (row.wired || (SystemState.wifi-enabled && SystemState.wifi-hardware))))));
+                                    clicked => {
+                                        if row.active { SystemState.network-disconnect(row.path); }
+                                        else if row.busy { SystemState.network-cancel(row.path); }
+                                        else if !row.supported { if root.full-mode { SystemState.network-edit-profile(row.path); } else { SystemState.open-settings("network:" + row.path); } }
+                                        else if !row.saved && !row.wired && row.available { root.begin-password(row.path, row.name, row.security); }
+                                        else { SystemState.network-connect(row.path, "", true); }
+                                    }
+                                }
+                            }
+                            if root.forget-target == row.path: VerticalLayout {
+                                MutedText { text: row.active ? @tr("Forget this profile and disconnect?") : @tr("Forget this saved network?"); }
+                                HorizontalLayout {
+                                    Button { text: @tr("Cancel"); clicked => { root.forget-target = ""; } }
+                                    Button { text: @tr("Delete"); clicked => { SystemState.network-forget(row.path); root.forget-target = ""; } }
+                                }
+                            }
+                        }
+                    }
+                    if (root.full-mode && root.tab == 1 ? SystemState.network-profiles.length : SystemState.networks.length) == 0: MutedText { text: !SystemState.network-service-ready ? @tr("NetworkManager is unavailable") : SystemState.network-search != "" ? @tr("No matching networks") : root.full-mode && root.tab == 1 ? @tr("No saved network profiles") : !SystemState.wifi-hardware ? @tr("Wi-Fi is blocked or no adapter is available") : !SystemState.wifi-enabled ? @tr("Wi-Fi is off") : SystemState.network-scanning ? @tr("Scanning…") : @tr("No networks found"); }
+                }
+            }
+            if root.full-mode: HorizontalLayout {
+                spacing: Theme.default-spacing;
+                Button { text: @tr("Add network"); clicked => { SystemState.network-new-profile("802-11-wireless"); } }
+                Button { text: @tr("Hidden network"); clicked => { SystemState.network-new-profile("hidden"); } }
+                Button { text: @tr("Hotspot"); clicked => { SystemState.network-new-profile("hotspot"); } }
+                Button { text: @tr("VPN / mobile"); clicked => { SystemState.network-new-profile("vpn"); } }
+            }
+        }
+    }
+}
+export component CalendarView inherits Rectangle {
+    VerticalLayout {
+        padding: Theme.spacing-xl; spacing: Theme.spacing-lg;
+        HorizontalLayout {
+            alignment: space-between;
+            SectionTitle { text: SystemState.today-date; vertical-alignment: center; }
+            Button { text: @tr("Today"); clicked => { SystemState.calendar-today(); } }
+        }
+        HorizontalLayout {
+            Button { text: "‹"; clicked => { SystemState.calendar-month(-1); } }
+            Text { text: SystemState.month; color: Theme.text-primary; font-weight: 600; font-size: Theme.font-size-lg; horizontal-alignment: center; vertical-alignment: center; horizontal-stretch: 1; }
+            Button { text: "›"; clicked => { SystemState.calendar-month(1); } }
+        }
+        Rectangle {
+            min-height: Theme.calendar-cell-height * 7;
+            for label[index] in SystemState.weekdays: Text { x: mod(index, 7) * parent.width / 7; y: 0; width: parent.width / 7; height: Theme.calendar-cell-height; text: label; color: Theme.text-secondary; font-size: Theme.font-size-sm; horizontal-alignment: center; vertical-alignment: center; }
+            for day[index] in SystemState.days: Rectangle {
+                x: mod(index, 7) * parent.width / 7; y: (floor(index / 7) + 1) * Theme.calendar-cell-height;
+                width: parent.width / 7; height: Theme.calendar-cell-height;
+                Rectangle {
+                    x: Theme.spacing-xs; y: Theme.spacing-xs; width: parent.width - Theme.spacing-xs * 2; height: parent.height - Theme.spacing-xs * 2;
+                    border-radius: Theme.radius-sm; border-width: day.today ? 1px : 0px; border-color: Theme.accent;
+                    background: day.selected ? Theme.surface-active : touch.has-hover ? Theme.surface-hover : transparent;
+                    animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+                    Text { text: day.text; width: 100%; height: 100%; horizontal-alignment: center; vertical-alignment: center; color: day.current ? Theme.text-primary : Theme.text-muted; font-size: Theme.font-size-md; font-weight: day.today ? 700 : 400; }
+                    touch := TouchArea { clicked => { SystemState.calendar-select(day.date); } }
+                }
+            }
+        }
+    }
+}
+export component KeyboardView inherits Rectangle {
+    VerticalLayout {
+        padding: Theme.spacing-xl; spacing: Theme.default-spacing;
+        SectionTitle { text: @tr("Keyboard layout"); }
+        for layout[index] in SystemState.layouts: Button { text: layout.label + "  ·  " + layout.name; primary: layout.active; clicked => { SystemState.keyboard-select(index); } }
+        Rectangle { vertical-stretch: 1; }
+        Button { text: @tr("Configure layouts…"); icon: Icons.configure; clicked => { SystemState.keyboard-settings(); } }
+    }
+}

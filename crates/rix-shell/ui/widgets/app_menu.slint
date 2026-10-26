@@ -1,0 +1,378 @@
+import { LauncherFooter, LauncherActionData } from "launcher_footer.slint";
+import { PlacesView, PlaceData } from "places.slint";
+import { Icons } from "../icons.slint";
+import { ThemeFrame } from "../frame.slint";
+import { Theme } from "../theme.slint";
+import { ScrollArea } from "../../../../ui/common/scroll_area.slint";
+import { AppIcon } from "common.slint";
+
+export struct AppEntryData {
+    name: string,
+    exec: string,
+    badge: string,
+    icon: image,
+    has-icon: bool,
+}
+
+export struct MenuCategoryData {
+    name: string,
+    key: string,
+    icon: image,
+    has-icon: bool,
+}
+
+export component AppMenu inherits Rectangle {
+    in-out property <[AppEntryData]> apps;
+    in-out property <[AppEntryData]> favorites;
+    in-out property <[MenuCategoryData]> categories;
+    in-out property <string> selected-category: "favorites";
+    in-out property <string> search-query: "";
+    in-out property <bool> pinned;
+    in property <int> menu-width: 700;
+    in property <int> menu-height: 720;
+    in property <string> user-name: "User";
+    in property <string> user-initial: "U";
+    private property <length> content-x: Theme.menu-padding + Theme.menu-sidebar-width + Theme.menu-column-gap;
+    private property <length> content-width: Math.max(0px, root.width - root.content-x - Theme.menu-padding);
+    private property <length> category-offset: Theme.menu-row-height * 2 + Theme.default-spacing * 2;
+    private property <int> favorite-columns: Math.max(1, Math.floor(root.content-width / Theme.favorite-cell-width));
+    private property <bool> showing-favorites: root.selected-category == "favorites" && root.search-query == "";
+    private property <[AppEntryData]> visible-apps: root.showing-favorites ? root.favorites : root.apps;
+    private property <int> selected-app: -1;
+    changed search-query => { root.selected-app = -1; }
+    changed selected-category => { root.selected-app = -1; }
+    in property <[LauncherActionData]> start-actions;
+    in property <[LauncherActionData]> end-actions;
+    in property <[PlaceData]> places;
+    in-out property <string> message;
+    callback open-place(string);
+    callback launch-app(string);
+    callback close-menu();
+    callback search-changed(string);
+    callback category-selected(string);
+    callback app-context-menu(string, length, length);
+    callback open-settings();
+    callback power-action(string);
+
+    width: root.menu-width * 1px;
+    height: root.menu-height * 1px;
+    background: Theme.menu-frame.available ? Colors.transparent : Theme.menu-bg;
+    border-radius: Theme.default-radius;
+    border-width: Theme.menu-frame.available ? 0px : 1px;
+    border-color: Theme.border-highlight;
+
+    clip: false;
+    if Theme.menu-frame.available: ThemeFrame { width: parent.width; height: parent.height; skin: Theme.menu-frame; material-opacity: Theme.material-opacity; }
+
+    in property <int> focus-generation;
+    changed focus-generation => { search-input.focus(); }
+    init => { search-input.focus(); }
+    forward-focus: search-input;
+
+    Rectangle {
+        x: Theme.menu-padding;
+        y: (Theme.menu-header-height - self.height) / 2;
+        width: 30px;
+        height: 30px;
+        border-radius: 15px;
+        border-width: 1px;
+        border-color: Theme.accent;
+        background: Theme.surface-active;
+        Text {
+            width: parent.width;
+            height: parent.height;
+            text: root.user-initial;
+            color: Theme.accent;
+            font-size: Theme.font-size-md;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+    Text {
+        x: Theme.menu-padding + 38px;
+        y: (Theme.menu-header-height - self.height) / 2;
+        text: root.user-name;
+        color: Theme.text-primary;
+        font-size: Theme.font-size-md;
+        vertical-alignment: center;
+        height: 27px;
+    }
+
+    Rectangle {
+        x: root.content-x;
+        y: (Theme.menu-header-height - self.height) / 2;
+        width: Math.max(0px, root.content-width - Theme.menu-action-size * 2 - Theme.spacing-xs * 2);
+        height: 30px;
+        border-radius: 7px;
+        background: Theme.surface;
+        border-width: 1px;
+        border-color: search-input.has-focus ? Theme.accent : Theme.border;
+        Image { x: 8px;  y: (round((parent.height - self.height) / 2px) * 1px); width: 20px; height: 20px; source: Icons.search; colorize: Theme.text-primary; image-fit: contain; }
+        search-input := TextInput {
+            x: 31px;
+            width: parent.width - 38px;
+            height: parent.height;
+            text <=> root.search-query;
+            color: Theme.text-primary;
+            font-size: Theme.font-size-md;
+            vertical-alignment: center;
+            edited => { root.search-changed(self.text); }
+            key-pressed(event) => {
+                if event.text == Key.Escape {
+                    if root.message != "" { root.message = ""; }
+                    else { root.close-menu(); }
+                    return accept;
+                }
+                if root.message != "" { return reject; }
+                if root.selected-category == "places" && root.search-query == "" { return reject; }
+                if event.text == Key.Return && root.visible-apps.length > 0 {
+                    root.launch-app(root.visible-apps[Math.max(0, root.selected-app)].exec); return accept;
+                }
+                if event.text == Key.DownArrow {
+                    root.selected-app = root.selected-app < 0 ? 0 : Math.min(root.visible-apps.length - 1, root.selected-app + (root.showing-favorites ? root.favorite-columns : 1));
+                    return accept;
+                }
+                if event.text == Key.UpArrow {
+                    root.selected-app = Math.max(0, root.selected-app - (root.showing-favorites ? root.favorite-columns : 1)); return accept;
+                }
+                if root.showing-favorites && root.selected-app >= 0 {
+                    if event.text == Key.LeftArrow { root.selected-app = Math.max(0, root.selected-app - 1); return accept; }
+                    if event.text == Key.RightArrow { root.selected-app = Math.min(root.visible-apps.length - 1, root.selected-app + 1); return accept; }
+                }
+                reject
+            }
+        }
+        if search-input.text == "": Text {
+            x: 31px;
+            text: @tr("Search…");
+            color: Theme.text-secondary;
+            font-size: Theme.font-size-md;
+            vertical-alignment: center;
+            height: parent.height;
+        }
+    }
+    for action[index] in [@tr("Configure menu"), @tr("Keep open")]: Rectangle {
+        x: root.width - Theme.menu-padding - (2 - index) * Theme.menu-action-size - (1 - index) * Theme.spacing-xs;
+        y: (Theme.menu-header-height - self.height) / 2;
+        width: Theme.menu-action-size;
+        height: Theme.menu-action-size;
+        border-radius: Theme.radius-sm;
+        background: index == 1 && root.pinned ? Theme.surface-active : action-touch.has-hover ? Theme.surface-hover : transparent;
+        accessible-role: button;
+        accessible-label: action;
+        accessible-checkable: index == 1;
+        accessible-checked: index == 1 && root.pinned;
+        animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+        Image {
+            x: (round((parent.width - self.width) / 2px) * 1px); y: (round((parent.height - self.height) / 2px) * 1px);
+            width: Theme.icon-size; height: Theme.icon-size;
+            source: index == 0 ? Icons.configure : Icons.pin;
+            colorize: index == 1 && root.pinned ? Theme.accent : Theme.text-primary;
+            image-fit: contain;
+        }
+        action-touch := TouchArea {
+            clicked => { if index == 0 { root.open-settings(); } else { root.pinned = !root.pinned; } }
+        }
+    }
+
+    sidebar := ScrollArea {
+        x: Theme.menu-padding;
+        y: Theme.menu-header-height;
+        width: Theme.menu-sidebar-width;
+        height: root.height - Theme.menu-header-height - Theme.menu-footer-height;
+        content-height: root.category-offset + root.categories.length * Theme.menu-row-height;
+
+        Rectangle {
+            x: 0px;
+            y: 0px;
+            width: sidebar.content-width - Theme.spacing-xs;
+            height: Theme.menu-row-height;
+            border-radius: Theme.radius-sm;
+            animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+            background: root.selected-category == "favorites" && root.search-query == "" ? Theme.surface-active : (favorites-touch.has-hover ? Theme.surface-hover : Colors.transparent);
+            favorites-touch := TouchArea { mouse-cursor: pointer; clicked => { root.category-selected("favorites"); } }
+            Image { x: 12px; y: (round((parent.height - self.height) / 2px) * 1px); width: 20px; height: 20px; source: Icons.favorites; colorize: Theme.text-primary; image-fit: contain; }
+            Text { x: 42px; text: @tr("Favorites"); color: Theme.text-primary; font-size: Theme.font-size-md; vertical-alignment: center; height: parent.height; }
+        }
+        Rectangle {
+            x: 0px;
+            y: Theme.menu-row-height;
+            width: sidebar.content-width - Theme.spacing-xs;
+            height: Theme.menu-row-height;
+            border-radius: Theme.radius-sm;
+            animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+            background: root.selected-category == "all" && root.search-query == "" ? Theme.surface-active : (all-touch.has-hover ? Theme.surface-hover : Colors.transparent);
+            all-touch := TouchArea { mouse-cursor: pointer; clicked => { root.category-selected("all"); } }
+            Image { x: 12px; y: (round((parent.height - self.height) / 2px) * 1px); width: 20px; height: 20px; source: Icons.applications; colorize: Theme.text-primary; image-fit: contain; }
+            Text { x: 42px; text: @tr("All applications"); color: Theme.text-primary; font-size: Theme.font-size-md; vertical-alignment: center; height: parent.height; }
+        }
+        Rectangle { x: 0px; y: root.category-offset - Theme.default-spacing; width: sidebar.content-width - Theme.spacing-xs; height: 1px; background: Theme.divider; }
+        category-list := Rectangle {
+            x: 0px;
+            y: root.category-offset;
+            width: sidebar.content-width - Theme.spacing-xs;
+            height: root.categories.length * Theme.menu-row-height;
+            for category[index] in root.categories: Rectangle {
+                y: index * Theme.menu-row-height;
+                width: category-list.width;
+                height: Theme.menu-row-height;
+                border-radius: Theme.radius-sm;
+                animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+                background: root.selected-category == category.key && root.search-query == "" ? Theme.surface-active : (category-touch.has-hover ? Theme.surface-hover : Colors.transparent);
+                category-touch := TouchArea { mouse-cursor: pointer; clicked => { root.category-selected(category.key); } }
+                if category.has-icon: Image { x: 12px; y: (round((parent.height - self.height) / 2px) * 1px); width: Theme.icon-size; height: Theme.icon-size; source: category.icon; image-fit: contain; }
+                if !category.has-icon: Image { x: 12px; y: (round((parent.height - self.height) / 2px) * 1px); width: Theme.icon-size; height: Theme.icon-size; source: Icons.applications; colorize: Theme.text-secondary; }
+                Text { x: 42px; text: category.name; color: Theme.text-primary; font-size: Theme.font-size-md; vertical-alignment: center; height: parent.height; }
+            }
+        }
+    }
+
+    Rectangle {
+        x: Theme.menu-padding + Theme.menu-sidebar-width - 1px; y: Theme.menu-header-height;
+        width: 1px; height: root.height - Theme.menu-header-height - Theme.menu-footer-height;
+        background: Theme.divider;
+    }
+
+    Rectangle {
+        x: root.content-x;
+        y: Theme.menu-header-height;
+        width: root.content-width;
+        height: root.height - Theme.menu-header-height - Theme.menu-footer-height;
+        background: Colors.transparent;
+
+        if root.selected-category == "places" && root.search-query == "": PlacesView {
+            width: parent.width; height: parent.height; places: root.places;
+            open-place(path) => { root.open-place(path); }
+        }
+        if root.selected-category == "favorites" && root.search-query == "": favorite-list := ScrollArea {
+            gutter: self.content-height > self.height ? Theme.scrollbar-gutter : 0px;
+            private property <int> highlighted: root.selected-app;
+            changed highlighted => {
+                if self.highlighted >= 0 {
+                    if Math.floor(self.highlighted / root.favorite-columns) * Theme.favorite-cell-height < -self.viewport-y {
+                        self.viewport-y = -Math.floor(self.highlighted / root.favorite-columns) * Theme.favorite-cell-height;
+                    } else if (Math.floor(self.highlighted / root.favorite-columns) + 1) * Theme.favorite-cell-height > -self.viewport-y + self.height {
+                        self.viewport-y = self.height - (Math.floor(self.highlighted / root.favorite-columns) + 1) * Theme.favorite-cell-height;
+                    }
+                }
+            }
+            width: parent.width;
+            height: parent.height;
+            content-height: Math.ceil(root.favorites.length / root.favorite-columns) * Theme.favorite-cell-height;
+            for app[index] in root.favorites: Rectangle {
+                x: Math.mod(index, root.favorite-columns) * (favorite-list.content-width / root.favorite-columns);
+                y: Math.floor(index / root.favorite-columns) * Theme.favorite-cell-height;
+                width: favorite-list.content-width / root.favorite-columns;
+                height: Theme.favorite-cell-height;
+                border-radius: Theme.radius-sm;
+                background: favorite-touch.has-hover || root.selected-app == index ? Theme.surface-hover : Colors.transparent;
+                animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+                favorite-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.launch-app(app.exec); }
+                    pointer-event(event) => {
+                        if (event.button == PointerEventButton.right && event.kind == PointerEventKind.up) {
+                            root.app-context-menu(app.exec, favorite-touch.absolute-position.x + favorite-touch.mouse-x, favorite-touch.absolute-position.y + favorite-touch.mouse-y);
+                        }
+                    }
+                }
+                AppIcon {
+                    x: (round((parent.width - self.width) / 2px) * 1px);
+                    y: 12px;
+                    icon: app.icon;
+                    has-icon: app.has-icon;
+                    letter: app.badge;
+                    icon-size: Theme.favorite-icon-size;
+                }
+                Text {
+                    x: 5px;
+                    y: Theme.favorite-icon-size + Theme.spacing-lg + Theme.default-spacing;
+                    width: parent.width - 10px;
+                    height: Theme.favorite-cell-height - self.y;
+                    text: app.name;
+                    color: Theme.text-primary;
+                    font-size: Theme.font-size-sm;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
+                    vertical-alignment: top;
+                    overflow: elide;
+                }
+            }
+        }
+
+        if (root.selected-category != "favorites" && root.selected-category != "places") || root.search-query != "": app-list := ScrollArea {
+            content-height: root.apps.length * Theme.app-row-height;
+            private property <int> highlighted: root.selected-app;
+            changed highlighted => {
+                if self.highlighted >= 0 {
+                    if self.highlighted * Theme.app-row-height < -self.viewport-y { self.viewport-y = -self.highlighted * Theme.app-row-height; }
+                    else if (self.highlighted + 1) * Theme.app-row-height > -self.viewport-y + self.height { self.viewport-y = self.height - (self.highlighted + 1) * Theme.app-row-height; }
+                }
+            }
+            width: parent.width;
+            height: parent.height;
+            for app[index] in root.apps: Rectangle {
+                y: index * Theme.app-row-height;
+                width: app-list.content-width;
+                height: Theme.app-row-height;
+                border-radius: Theme.radius-sm;
+                background: app-touch.has-hover || root.selected-app == index ? Theme.surface-hover : Colors.transparent;
+                animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+                app-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.launch-app(app.exec); }
+                    pointer-event(event) => {
+                        if (event.button == PointerEventButton.right && event.kind == PointerEventKind.up) {
+                            root.app-context-menu(app.exec, app-touch.absolute-position.x + app-touch.mouse-x, app-touch.absolute-position.y + app-touch.mouse-y);
+                        }
+                    }
+                }
+                AppIcon {
+                    x: 9px;
+                    y: (round((parent.height - self.height) / 2px) * 1px);
+                    icon: app.icon;
+                    has-icon: app.has-icon;
+                    letter: app.badge;
+                    icon-size: Theme.app-icon-size;
+                }
+                Text { x: 49px; width: parent.width - 55px; height: parent.height; text: app.name; color: Theme.text-primary; font-size: Theme.font-size-md; vertical-alignment: center; overflow: elide; }
+            }
+        }
+        if root.apps.length == 0 && ((root.selected-category != "favorites" && root.selected-category != "places") || root.search-query != ""): Text {
+            text: @tr("Nothing found");
+            color: Theme.text-secondary;
+            font-size: Theme.font-size-md;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            width: parent.width;
+            height: parent.height;
+        }
+    }
+
+    Rectangle {
+        x: Theme.menu-padding; y: parent.height - Theme.menu-footer-height;
+        width: parent.width - Theme.menu-padding * 2; height: 1px; background: Theme.divider;
+    }
+    LauncherFooter {
+        x: Theme.menu-padding;
+        y: parent.height - Theme.menu-footer-height + Theme.spacing-lg;
+        width: parent.width - Theme.menu-padding * 2;
+        height: Theme.menu-footer-height - Theme.spacing-lg * 2;
+        start-actions: root.start-actions; end-actions: root.end-actions;
+        triggered(action, label) => {
+            if action == "applications" { root.category-selected("all"); }
+            else if action == "places" { root.category-selected("places"); }
+            else if action == "settings" { root.open-settings(); }
+            else { root.power-action(action); }
+        }
+    }
+    if root.message != "": Rectangle {
+        x: Theme.menu-padding; y: Theme.menu-header-height;
+        width: parent.width - Theme.menu-padding * 2; height: Theme.menu-row-height * 2;
+        background: Theme.window-background; border-width: 1px; border-color: Theme.border-highlight;
+        border-radius: Theme.radius-sm;
+        Text { x: Theme.default-spacing; width: parent.width - Theme.default-spacing * 2 - Theme.icon-size; height: parent.height; text: root.message; wrap: word-wrap; vertical-alignment: center; color: Theme.text-primary; }
+        Image { x: parent.width - Theme.icon-size - Theme.spacing-xs; y: Theme.spacing-xs; width: Theme.icon-size; height: Theme.icon-size; source: Icons.close; colorize: Theme.text-primary; }
+        TouchArea { clicked => { root.message = ""; } }
+    }
+}

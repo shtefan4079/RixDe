@@ -1,0 +1,18 @@
+[package]
+name = "rix-dm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+rix-auth = { path = "../rix-auth" }
+libc.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+tokio.workspace = true
+zbus = { version = "5.19", default-features = false, features = ["tokio"] }

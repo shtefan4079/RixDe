@@ -1,0 +1,102 @@
+import { ScrollArea } from "../../../../ui/common/scroll_area.slint";
+import { PopupGeometry } from "../../../../ui/common/popup_geometry.slint";
+import { MenuStyle, MenuSurface, MenuRow } from "../../../../ui/common/context_menu.slint";
+import { Theme } from "../theme.slint";
+
+export struct ContextMenuItemData {
+    id: string,
+    icon: image,
+    has-icon: bool,
+    label: string,
+    is-destructive: bool,
+    disabled: bool,
+    separator: bool,
+    checkable: bool,
+    radio: bool,
+    checked: bool,
+    submenu: bool,
+    row-y: float,
+    row-height: float,
+}
+
+export component ContextMenu inherits MenuSurface {
+    in property <bool> enabled: true;
+    in property <[ContextMenuItemData]> items;
+    in property <length> menu-x: 100px;
+    in property <length> menu-bottom: 0px;
+    in property <length> window-width: 1200px;
+    in property <length> window-height: 600px;
+    in property <length> content-height;
+    in property <length> menu-width: 0px;
+    in property <int> selected-index: -1;
+    in property <bool> can-go-back;
+    in property <bool> prefer-below;
+    opaque: !MenuStyle.native-popups;
+    callback hovered(int);
+    callback go-back();
+    callback enter-submenu();
+    callback select-edge(bool);
+    callback item-selected(string);
+    callback navigate(int);
+    callback activate-selected();
+    callback close-menu();
+    changed enabled => { if root.enabled { keys.focus(); } }
+    changed selected-index => {
+        if root.selected-index >= 0 && root.selected-index < root.items.length {
+            if root.items[root.selected-index].row-y * 1px < -scroll.viewport-y {
+                scroll.viewport-y = -root.items[root.selected-index].row-y * 1px;
+            } else if (root.items[root.selected-index].row-y + root.items[root.selected-index].row-height) * 1px > -scroll.viewport-y + scroll.height {
+                scroll.viewport-y = scroll.height - (root.items[root.selected-index].row-y + root.items[root.selected-index].row-height) * 1px;
+            }
+        }
+    }
+    init => { keys.focus(); }
+    keys := FocusScope {
+        key-pressed(event) => {
+            if !root.enabled { return reject; }
+            if event.text == Key.Escape { if root.can-go-back { root.go-back(); } else { root.close-menu(); } return accept; }
+            if event.text == Key.LeftArrow && root.can-go-back { root.go-back(); return accept; }
+            if event.text == Key.RightArrow { root.enter-submenu(); return accept; }
+            if event.text == Key.Home { root.select-edge(false); return accept; }
+            if event.text == Key.End { root.select-edge(true); return accept; }
+            if event.text == Key.DownArrow { root.navigate(1); return accept; }
+            if event.text == Key.UpArrow { root.navigate(-1); return accept; }
+            if event.text == Key.Return { root.activate-selected(); return accept; }
+            reject
+        }
+    }
+
+    width: PopupGeometry.extent(root.menu-width > 0px ? root.menu-width : MenuStyle.minimum-width, root.window-width, Theme.spacing-xs);
+    height: PopupGeometry.extent(Math.min(Theme.context-menu-max-height, root.content-height + Theme.context-menu-padding * 2), root.window-height, Theme.spacing-xs);
+    x: PopupGeometry.coordinate(root.menu-x, self.width, root.window-width, Theme.spacing-xs, false);
+    y: PopupGeometry.coordinate(root.window-height - root.menu-bottom, self.height, root.window-height, Theme.spacing-xs, !root.prefer-below);
+
+    TouchArea { }
+    scroll := ScrollArea {
+        x: Theme.context-menu-padding; y: Theme.context-menu-padding;
+        gutter: root.content-height > self.height ? Theme.scrollbar-gutter : 0px;
+        width: parent.width - Theme.context-menu-padding * 2;
+        height: parent.height - Theme.context-menu-padding * 2;
+        content-height: root.content-height;
+        for entry[index] in root.items: MenuRow {
+            x: 0px;
+            y: entry.row-y * 1px;
+            height: entry.row-height * 1px;
+            width: scroll.content-width;
+            label: entry.label;
+            icon: entry.icon;
+            has-icon: entry.has-icon;
+            disabled: entry.disabled;
+            destructive: entry.is-destructive;
+            separator: entry.separator;
+            selected: root.selected-index == index;
+            checked: entry.checked;
+            radio: entry.radio;
+            checkable: entry.checkable;
+            submenu: entry.submenu;
+            interactive: root.enabled;
+            hovered => { root.hovered(index); }
+            activated => { root.item-selected(entry.id); }
+        }
+    }
+}

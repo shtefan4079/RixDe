@@ -1,0 +1,222 @@
+import { Theme } from "theme.slint";
+import { Icons } from "icons.slint";
+import { MenuStyle, MenuSurface, MenuRow, MenuHost } from "context_menu.slint";
+import { ScrollArea } from "scroll_area.slint";
+
+export component ComboBox inherits Rectangle {
+    in property <[string]> model;
+    in property <bool> enabled: true;
+    in-out property <int> current-index: 0;
+    in-out property <string> current-value: root.current-index >= 0 && root.current-index < root.model.length ? root.model[root.current-index] : "";
+    out property <bool> has-focus: keys.has-focus || root.popup-open;
+    out property <bool> popup-open: popup.is-open || root.native-menu-open;
+    callback selected(string);
+
+    private property <int> cursor: root.current-index;
+    private property <int> menu-owner;
+    private property <bool> native-menu-open;
+    private property <int> menu-event: MenuHost.event-generation;
+    private property <int> active-menu-owner: MenuHost.active-owner;
+    changed active-menu-owner => {
+        if root.native-menu-open && root.active-menu-owner > 0 && root.active-menu-owner != root.menu-owner {
+            root.native-menu-open = false;
+        }
+    }
+    private property <int> row-count: root.model.length;
+    private property <string> selected-label: root.current-index >= 0 && root.current-index < root.model.length ? root.model[root.current-index] : "";
+    private property <length> row-height: Math.max(1px, Theme.menu-row-height);
+    private property <length> menu-padding: Math.max(0px, Theme.context-menu-padding);
+    private property <length> popup-height: Math.min(Math.max(root.row-height + root.menu-padding * 2, Theme.context-menu-max-height), Math.min(8, root.model.length) * root.row-height + root.menu-padding * 2);
+
+    min-width: Theme.icon-size * 8;
+    min-height: Math.max(Theme.menu-action-size, value.preferred-height + Theme.default-spacing * 2);
+    preferred-height: self.min-height;
+    vertical-stretch: 0;
+    horizontal-stretch: 1;
+    forward-focus: keys;
+    accessible-role: combobox;
+    accessible-enabled: root.enabled;
+    accessible-expandable: root.enabled && root.model.length > 0;
+    accessible-expanded: root.popup-open;
+    accessible-value: root.current-value;
+    accessible-action-expand => { root.show-popup(); }
+
+    function update-value() {
+        root.current-value = root.selected-label;
+    }
+    function move-to(index: int, preview: bool) {
+        if root.enabled && root.model.length > 0 {
+            let bounded = Math.clamp(index, 0, root.model.length - 1);
+            root.cursor = bounded;
+            if !preview && bounded != root.current-index { root.select(bounded); }
+        }
+    }
+    public function select(index: int) {
+        if root.enabled && index >= 0 && index < root.model.length {
+            root.current-index = index;
+
+            root.update-value();
+            root.cursor = index;
+            root.selected(root.current-value);
+        }
+    }
+    public function show-popup() {
+        if root.enabled && root.model.length > 0 {
+            root.cursor = Math.clamp(root.current-index, 0, root.model.length - 1);
+            keys.focus();
+            if root.menu-owner == 0 { root.menu-owner = MenuHost.register-owner(); }
+            popup.close();
+            root.native-menu-open = root.menu-owner > 0 && MenuHost.request(root.menu-owner,
+                MenuHost.options-items(root.model, root.current-index),
+                root.absolute-position.x, root.absolute-position.y + root.height,
+                Math.max(root.width, Theme.icon-size * 8), root.popup-height, root.current-value);
+            if !root.native-menu-open { popup.show(); }
+        }
+    }
+    public function close-popup() {
+        if root.native-menu-open { root.native-menu-open = false; MenuHost.close(root.menu-owner); }
+        popup.close(); keys.focus();
+    }
+    changed menu-event => {
+        if root.menu-owner > 0 && root.native-menu-open && MenuHost.event-owner == root.menu-owner {
+            root.native-menu-open = false;
+            if MenuHost.event-unavailable && root.enabled && root.model.length > 0 { popup.show(); }
+            else if MenuHost.event-action.is-float() { root.choose(Math.round(MenuHost.event-action.to-float())); }
+            else { keys.focus(); }
+        }
+    }
+    function choose(index: int) {
+
+        root.close-popup();
+        root.select(index);
+    }
+    function navigate(event: KeyEvent, preview: bool) -> EventResult {
+        if !root.enabled { return reject; }
+        let start = preview ? root.cursor : root.current-index;
+        if event.text == Key.UpArrow { root.move-to(start - 1, preview); return accept; }
+        if event.text == Key.DownArrow { root.move-to(start + 1, preview); return accept; }
+        if event.text == Key.Home { root.move-to(0, preview); return accept; }
+        if event.text == Key.End { root.move-to(root.model.length - 1, preview); return accept; }
+        if event.text == Key.PageUp { root.move-to(start - 8, preview); return accept; }
+        if event.text == Key.PageDown { root.move-to(start + 8, preview); return accept; }
+        reject
+    }
+    changed current-index => {
+        root.update-value();
+        root.cursor = Math.clamp(root.current-index, 0, Math.max(0, root.model.length - 1));
+    }
+    function refresh-model() {
+        let bounded = Math.clamp(root.current-index, -1, root.model.length - 1);
+        if root.current-index != bounded { root.current-index = bounded; }
+        root.update-value();
+        root.cursor = Math.max(0, root.current-index);
+        if root.popup-open { root.close-popup(); }
+    }
+    changed model => { root.refresh-model(); }
+    changed row-count => { root.refresh-model(); }
+    changed selected-label => { root.update-value(); }
+    changed enabled => { if !root.enabled { root.close-popup(); } }
+
+    Rectangle {
+        width: root.width;
+        height: root.height;
+        border-radius: Theme.radius-sm;
+        border-width: 1px;
+        border-color: root.has-focus ? Theme.accent : Theme.control-border;
+        background: touch.pressed || root.popup-open ? Theme.surface-active : touch.has-hover ? Theme.surface-hover : Theme.control-surface;
+        opacity: root.enabled ? 1 : 0.5;
+        value := Text {
+            x: Theme.spacing-lg;
+            width: Math.max(0px, root.width - self.x * 2 - Theme.icon-size-sm - Theme.default-spacing);
+            height: parent.height;
+            text: root.current-value;
+            color: Theme.text-primary;
+            font-family: Theme.font-family;
+            font-size: Theme.font-size-md;
+            vertical-alignment: center;
+            overflow: elide;
+            accessible-role: none;
+        }
+        Image {
+            x: root.width - Theme.spacing-lg - self.width;
+            y: (root.height - self.height) / 2;
+            width: Theme.icon-size-sm;
+            height: self.width;
+            source: Icons.chevron;
+            colorize: Theme.text-secondary;
+            image-fit: contain;
+            transform-rotation: 90deg;
+        }
+    }
+    keys := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if event.text == Key.Return || event.text == " " || event.text == Key.F4 || (event.text == Key.DownArrow && event.modifiers.alt) {
+                root.show-popup();
+                return accept;
+            }
+            root.navigate(event, false)
+        }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { if root.popup-open { root.close-popup(); } else { root.show-popup(); } }
+        scroll-event(event) => {
+            if keys.has-focus && !root.popup-open && Math.abs(event.delta-y) >= 2px {
+                root.move-to(root.current-index + (event.delta-y < 0px ? 1 : -1), false);
+                return accept;
+            }
+            reject
+        }
+    }
+
+    popup := PopupWindow {
+        x: 0px;
+        y: root.height;
+        width: root.width;
+        height: root.popup-height;
+        close-policy: close-on-click-outside;
+        MenuSurface {
+            width: parent.width;
+            height: parent.height;
+            opaque: !MenuStyle.native-popups;
+            popup-keys := FocusScope {
+                init => { self.focus(); }
+                key-pressed(event) => {
+                    if event.text == Key.Escape || event.text == Key.F4 || (event.text == Key.UpArrow && event.modifiers.alt) { root.close-popup(); return accept; }
+                    if event.text == Key.Return || event.text == " " { root.choose(root.cursor); return accept; }
+                    if event.text == Key.Tab { root.close-popup(); return reject; }
+                    root.navigate(event, true)
+                }
+            }
+            area := ScrollArea {
+                private property <int> visible-cursor: root.cursor;
+                init => { self.reveal(root.cursor * root.row-height, (root.cursor + 1) * root.row-height); }
+                changed visible-cursor => { self.reveal(root.cursor * root.row-height, (root.cursor + 1) * root.row-height); }
+                changed height => { self.reveal(root.cursor * root.row-height, (root.cursor + 1) * root.row-height); }
+                changed content-height => { self.reveal(root.cursor * root.row-height, (root.cursor + 1) * root.row-height); }
+                x: root.menu-padding;
+                y: root.menu-padding;
+                width: Math.max(0px, parent.width - root.menu-padding * 2);
+                height: Math.max(0px, parent.height - root.menu-padding * 2);
+                gutter: root.model.length * root.row-height > self.height ? Theme.scrollbar-gutter : 0px;
+                content-height: root.model.length * root.row-height;
+                VerticalLayout {
+                    width: area.content-width;
+                    height: area.content-height;
+                    spacing: 0px;
+                    for option[index] in root.model: MenuRow {
+                        label: option;
+                        checkable: true;
+                        checked: index == root.current-index;
+                        selected: index == root.cursor;
+                        hover-on-enter: false;
+                        hovered => { root.cursor = index; }
+                        activated => { root.choose(index); }
+                    }
+                }
+            }
+        }
+    }
+}

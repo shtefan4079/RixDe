@@ -1,0 +1,246 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { MenuStyle, MenuSurface, MenuRow, MenuHost, SharedMenuItem } from "../../../ui/common/context_menu.slint";
+import { Icons } from "../../../ui/common/icons.slint";
+import { ScrollArea } from "../../../ui/common/scroll_area.slint";
+import { Button, Field } from "controls.slint";
+export struct PickerOption { label: string, value: string }
+export struct PickerChoice { label: string, options: [PickerOption], selected: int }
+export global FilePicker {
+    in-out property <bool> active;
+    in-out property <bool> saving;
+    in-out property <bool> directory;
+    in-out property <string> title;
+    in-out property <string> accept-label;
+    in-out property <string> name;
+    in-out property <bool> name-has-focus;
+    in-out property <string> summary;
+    in-out property <[PickerOption]> filters;
+    in-out property <int> selected-filter: -1;
+    in-out property <[PickerChoice]> choices;
+    callback change-filter(int);
+    callback change-choice(int, int);
+    pure callback menu-items([PickerOption], int) -> [SharedMenuItem];
+    callback accept();
+    callback cancel();
+}
+export component PickerSelect inherits Rectangle {
+    in property <[PickerOption]> options;
+    in property <int> selected;
+    callback chosen(int);
+    private property <int> menu-cursor: root.selected;
+    private property <int> menu-owner;
+    private property <bool> native-menu-open;
+    private property <int> menu-event: MenuHost.event-generation;
+    private property <int> active-menu-owner: MenuHost.active-owner;
+    changed active-menu-owner => {
+        if root.native-menu-open && root.active-menu-owner > 0 && root.active-menu-owner != root.menu-owner {
+            root.native-menu-open = false;
+        }
+    }
+    private property <int> option-count: root.options.length;
+    private property <string> current-label: root.selected >= 0 && root.selected < root.options.length ? root.options[root.selected].label : "";
+    out property <bool> popup-open: menu.is-open || root.native-menu-open;
+    private property <length> row-height: Math.max(1px, Theme.menu-row-height);
+    private property <length> menu-padding: Math.max(0px, Theme.context-menu-padding);
+    private property <length> menu-height: Math.min(Math.max(root.row-height + root.menu-padding * 2, Theme.context-menu-max-height), Math.min(8, root.options.length) * root.row-height + root.menu-padding * 2);
+    min-height: Theme.menu-action-size;
+    min-width: Theme.icon-size * 8;
+    background: root.popup-open ? Theme.surface-active : touch.has-hover ? Theme.surface-hover : Theme.control-surface;
+    border-width: 1px; border-color: keys.has-focus || root.popup-open ? Theme.accent : Theme.control-border;
+    border-radius: Theme.radius-sm;
+    forward-focus: keys;
+    accessible-role: combobox;
+    accessible-label: root.current-label;
+    accessible-value: root.current-label;
+    accessible-expandable: root.options.length > 0;
+    accessible-expanded: root.popup-open;
+    accessible-action-expand => { root.show-menu(); }
+    function show-menu() {
+        if root.options.length > 0 {
+            root.menu-cursor = Math.clamp(root.selected, 0, root.options.length - 1);
+            keys.focus();
+            if root.menu-owner == 0 { root.menu-owner = MenuHost.register-owner(); }
+            menu.close();
+            root.native-menu-open = root.menu-owner > 0 && MenuHost.request(root.menu-owner,
+                FilePicker.menu-items(root.options, root.selected),
+                root.absolute-position.x, root.absolute-position.y + root.height,
+                Math.max(200px, root.width), root.menu-height, root.current-label);
+            if !root.native-menu-open { menu.show(); }
+        }
+    }
+    function close-menu() {
+        if root.native-menu-open { root.native-menu-open = false; MenuHost.close(root.menu-owner); }
+        menu.close(); keys.focus();
+    }
+    function choose(index: int) {
+        root.close-menu();
+        if index >= 0 && index < root.options.length { root.chosen(index); }
+    }
+    function move-to(index: int, preview: bool) {
+        if root.options.length > 0 {
+            let bounded = Math.clamp(index, 0, root.options.length - 1);
+            root.menu-cursor = bounded;
+            if !preview && bounded != root.selected { root.chosen(bounded); }
+        }
+    }
+    function navigate(event: KeyEvent, preview: bool) -> EventResult {
+        let start = preview ? root.menu-cursor : root.selected;
+        if event.text == Key.DownArrow { root.move-to(start + 1, preview); return accept; }
+        if event.text == Key.UpArrow { root.move-to(start - 1, preview); return accept; }
+        if event.text == Key.Home { root.move-to(0, preview); return accept; }
+        if event.text == Key.End { root.move-to(root.options.length - 1, preview); return accept; }
+        if event.text == Key.PageUp { root.move-to(start - 8, preview); return accept; }
+        if event.text == Key.PageDown { root.move-to(start + 8, preview); return accept; }
+        reject
+    }
+    changed menu-event => {
+        if root.menu-owner > 0 && root.native-menu-open && MenuHost.event-owner == root.menu-owner {
+            root.native-menu-open = false;
+            if MenuHost.event-unavailable && root.options.length > 0 { menu.show(); }
+            else if MenuHost.event-action.is-float() { root.choose(Math.round(MenuHost.event-action.to-float())); }
+            else { keys.focus(); }
+        }
+    }
+    changed options => { if root.popup-open { root.close-menu(); } }
+    changed option-count => { if root.popup-open { root.close-menu(); } }
+    Text { x: Theme.spacing-lg; width: Math.max(0px, parent.width - self.x * 2 - Theme.icon-size-sm - Theme.default-spacing); height: parent.height; text: root.current-label; color: Theme.text-primary; font-family: Theme.font-family; vertical-alignment: center; overflow: elide; }
+    Image { x: root.width - Theme.spacing-lg - self.width; y: (root.height - self.height) / 2; width: Theme.icon-size-sm; height: self.width; source: Icons.chevron; colorize: Theme.text-secondary; image-fit: contain; transform-rotation: 90deg; }
+    keys := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.Return || event.text == " " || event.text == Key.F4 || (event.text == Key.DownArrow && event.modifiers.alt) { root.show-menu(); return accept; }
+            root.navigate(event, false)
+        }
+    }
+    touch := TouchArea { mouse-cursor: pointer; clicked => { if root.popup-open { root.close-menu(); } else { root.show-menu(); } } }
+    menu := PopupWindow {
+        x: 0px; y: root.height; width: Math.max(200px, root.width);
+        height: root.menu-height;
+        close-policy: close-on-click-outside;
+        MenuSurface { width: parent.width; height: parent.height; opaque: !MenuStyle.native-popups;
+            menu-keys := FocusScope {
+                init => { self.focus(); }
+                key-pressed(event) => {
+                    if event.text == Key.Escape || event.text == Key.F4 || (event.text == Key.UpArrow && event.modifiers.alt) { root.close-menu(); return accept; }
+                    if event.text == Key.Return || event.text == " " { root.choose(root.menu-cursor); return accept; }
+                    if event.text == Key.Tab { root.close-menu(); return reject; }
+                    root.navigate(event, true)
+                }
+            }
+            area := ScrollArea {
+                private property <int> visible-cursor: root.menu-cursor;
+                init => { self.reveal(root.menu-cursor * root.row-height, (root.menu-cursor + 1) * root.row-height); }
+                changed visible-cursor => { self.reveal(root.menu-cursor * root.row-height, (root.menu-cursor + 1) * root.row-height); }
+                changed height => { self.reveal(root.menu-cursor * root.row-height, (root.menu-cursor + 1) * root.row-height); }
+                x: root.menu-padding; y: self.x; width: parent.width - self.x * 2; height: parent.height - self.y * 2;
+                gutter: root.options.length * root.row-height > self.height ? Theme.scrollbar-gutter : 0px;
+                content-height: root.options.length * root.row-height;
+                VerticalLayout { width: area.content-width; spacing: 0px;
+                    for option[index] in root.options: MenuRow { label: option.label; checkable: true; checked: index == root.selected; selected: index == root.menu-cursor; hover-on-enter: false; hovered => { root.menu-cursor = index; } activated => { root.choose(index); } }
+                }
+            }
+        }
+    }
+}
+
+export component PickerBar inherits Rectangle {
+    min-height: content.preferred-height;
+    vertical-stretch: 0;
+    background: Theme.surface;
+    Rectangle { x: 0px; y: 0px; width: parent.width; height: 1px; background: Theme.divider; }
+    content := VerticalLayout {
+        padding-left: Theme.spacing-xl;
+        padding-right: Theme.spacing-xl;
+        padding-top: Theme.spacing-lg;
+        padding-bottom: Theme.spacing-lg;
+        spacing: Theme.spacing-lg;
+        if FilePicker.saving && !FilePicker.directory: HorizontalLayout {
+            spacing: Theme.spacing-lg;
+            alignment: center;
+            Text {
+                text: @tr("File name") + ":";
+                color: Theme.text-secondary;
+                font-size: Theme.font-size-md;
+                vertical-alignment: center;
+                min-width: 80px;
+                horizontal-stretch: 0;
+            }
+            Field {
+                horizontal-stretch: 1;
+                changed has-focus => { FilePicker.name-has-focus = self.has-focus; }
+                placeholder: @tr("File name");
+                text <=> FilePicker.name;
+                escape => { FilePicker.cancel(); }
+                accepted(value) => { FilePicker.accept(); }
+            }
+        }
+        if FilePicker.filters.length > 0: HorizontalLayout {
+            spacing: Theme.spacing-lg;
+            alignment: center;
+            Text {
+                text: @tr("File type") + ":";
+                color: Theme.text-secondary;
+                font-size: Theme.font-size-md;
+                vertical-alignment: center;
+                min-width: 80px;
+                horizontal-stretch: 0;
+            }
+            PickerSelect {
+                horizontal-stretch: 1;
+                options: FilePicker.filters;
+                selected: FilePicker.selected-filter;
+                chosen(index) => { FilePicker.change-filter(index); }
+            }
+        }
+        if FilePicker.choices.length > 0: choice-area := ScrollArea {
+            height: Math.min(120px, FilePicker.choices.length * (Theme.menu-action-size + Theme.spacing-lg));
+            content-height: FilePicker.choices.length * (Theme.menu-action-size + Theme.spacing-lg);
+            VerticalLayout {
+                width: choice-area.content-width;
+                spacing: Theme.spacing-lg;
+                for choice[index] in FilePicker.choices: HorizontalLayout {
+                    spacing: Theme.spacing-lg;
+                    alignment: center;
+                    Text {
+                        text: choice.label + ":";
+                        color: Theme.text-secondary;
+                        font-size: Theme.font-size-md;
+                        vertical-alignment: center;
+                        min-width: 80px;
+                        horizontal-stretch: 0;
+                    }
+                    PickerSelect {
+                        horizontal-stretch: 1;
+                        options: choice.options;
+                        selected: choice.selected;
+                        chosen(option) => { FilePicker.change-choice(index, option); }
+                    }
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: Theme.spacing-lg;
+            alignment: center;
+            Text {
+                text: FilePicker.summary;
+                color: Theme.text-secondary;
+                font-size: Theme.font-size-sm;
+                overflow: elide;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+            HorizontalLayout {
+                spacing: Theme.spacing-lg;
+                alignment: end;
+                Button {
+                    text: @tr("Cancel");
+                    clicked => { FilePicker.cancel(); }
+                }
+                Button {
+                    text: FilePicker.accept-label;
+                    active: true;
+                    clicked => { FilePicker.accept(); }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,52 @@
+import { Theme } from "../theme.slint";
+import { ThemeFrame } from "../frame.slint";
+import { Icons } from "../icons.slint";
+export struct SwitcherItem { id: int, title: string, app: string, icon: image, preview: image, loaded: bool, minimized: bool }
+export component WindowSwitcher inherits Rectangle {
+    in property <[SwitcherItem]> items;
+    in property <int> selected;
+    in property <int> position;
+    in property <int> total;
+    in property <length> card-width;
+    callback choose(int);
+    width: cards.preferred-width + Theme.spacing-xl * 2;
+    height: card-width * 9/16 + Theme.spacing-xl * 4 + Theme.preview-header-height * 2;
+    background: Theme.menu-frame.available ? transparent : Theme.menu-bg;
+    border-radius: Theme.radius-lg;
+    if Theme.menu-frame.available: ThemeFrame { width: 100%; height: 100%; skin: Theme.menu-frame; material-opacity: Theme.material-opacity; }
+    TouchArea { }
+    VerticalLayout {
+        padding: Theme.spacing-xl; spacing: Theme.spacing-lg;
+        HorizontalLayout {
+            Text { text: @tr("Windows"); color: Theme.text-primary; font-size: Theme.font-size-lg; font-weight: 600; horizontal-stretch: 1; }
+        }
+        cards := HorizontalLayout {
+            spacing: Theme.spacing-lg;
+            for item[index] in root.items: Rectangle {
+                width: root.card-width;
+                background: index == root.selected ? Theme.surface-active : touch.has-hover ? Theme.surface-hover : transparent;
+                border-radius: Theme.radius-md;
+                border-width: index == root.selected ? 2px : 1px;
+                border-color: index == root.selected ? Theme.accent : Theme.border;
+                animate background, border-color { duration: Theme.hover-duration * 1ms; }
+                VerticalLayout {
+                    padding: Theme.default-spacing; spacing: Theme.default-spacing;
+                    Rectangle {
+                        height: root.card-width * 9/16;
+                        Image { source: item.icon.width > 0 ? item.icon : Icons.applications; width: Theme.icon-size * 2; height: self.width; x: (parent.width - self.width)/2; y: (parent.height - self.height)/2; image-fit: contain; }
+                        Image { source: item.preview; width: 100%; height: 100%; image-fit: contain; }
+                    }
+                    HorizontalLayout {
+                        height: Theme.preview-header-height; spacing: Theme.default-spacing;
+                        Image { source: item.icon.width > 0 ? item.icon : Icons.applications; width: Theme.icon-size; height: self.width; image-fit: contain; }
+                        VerticalLayout {
+                            Text { text: item.title; color: Theme.text-primary; font-size: Theme.font-size-md; overflow: elide; }
+                            Text { text: item.app + (item.minimized ? @tr(" · minimized") : ""); color: Theme.text-secondary; font-size: Theme.font-size-sm; overflow: elide; }
+                        }
+                    }
+                }
+                touch := TouchArea { clicked => { root.choose(item.id); } }
+            }
+        }
+    }
+}

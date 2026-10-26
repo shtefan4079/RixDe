@@ -1,0 +1,40 @@
+import { Theme } from "../theme.slint";
+
+export component ClockWidget inherits Rectangle {
+    in property <string> time-str: "12:00";
+    in property <string> date-str: "";
+    callback clicked(length);
+    in property <bool> is-edit-mode: false;
+
+    width: Theme.clock-width;
+    height: 100%;
+
+    border-width: 1px;
+    border-color: root.is-edit-mode ? Theme.edit-outline : Colors.transparent;
+    border-radius: Theme.radius-md;
+    background: touch.has-hover ? Theme.surface-hover : transparent;
+    animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+
+    touch := TouchArea { width: 100%; height: 100%; clicked => { root.clicked(root.absolute-position.x + root.width / 2); } }
+    VerticalLayout {
+        width: 100%;
+        height: 100%;
+        alignment: center;
+        spacing: 0px;
+        Text {
+            text: root.time-str;
+            color: Theme.text-primary;
+            font-size: Theme.font-size-lg;
+            font-weight: 600;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
+        if root.date-str != "": Text {
+            text: root.date-str;
+            color: Theme.text-secondary;
+            font-size: Theme.font-size-sm;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
+    }
+}

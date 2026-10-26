@@ -1,0 +1,244 @@
+import { Palette } from "std-widgets.slint";
+import { ComboBox } from "../../../ui/common/combo_box.slint";
+import { Theme } from "../../../ui/common/theme.slint";
+
+component QuietButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> enabled: true;
+    callback clicked();
+    height: 38px;
+    min-width: 104px;
+    border-radius: 10px;
+    background: touch.has-hover || keys.has-focus ? #ffffff15 : #ffffff06;
+    border-width: 1px;
+    border-color: keys.has-focus ? #9aabff : #ffffff12;
+    opacity: root.enabled ? 1 : 0.4;
+    forward-focus: keys;
+    accessible-role: button;
+    accessible-label: root.text;
+    Text { text: root.text; color: #c0c5d8; font-size: 13px; horizontal-alignment: center; vertical-alignment: center; }
+    keys := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if event.text == Key.Return || event.text == " " { root.clicked(); return accept; }
+            reject
+        }
+    }
+    touch := TouchArea { enabled: root.enabled; mouse-cursor: pointer; clicked => { keys.focus(); root.clicked(); } }
+    animate background { duration: 150ms; }
+}
+
+export component LoginWindow inherits Window {
+    title: "Rix";
+    background: #10121c;
+    preferred-width: 1280px;
+    preferred-height: 800px;
+    default-font-family: "Noto Sans";
+    in-out property <string> username;
+    in property <string> display-name;
+    in property <bool> manual-user: root.users.length == 0;
+    in-out property <string> password;
+    in property <bool> busy;
+    in property <string> status;
+    in property <bool> lock-mode;
+    in property <bool> secondary-output;
+    in property <string> time-text;
+    in property <string> date-text;
+    in property <[string]> users;
+    in property <[string]> sessions;
+    in-out property <int> selected-user;
+    in-out property <int> selected-session;
+    in property <string> layout-text;
+    in property <bool> caps-lock;
+    in property <string> title-text: "Welcome to Rix";
+    in property <string> subtitle-text: "Your space. Your Rix.";
+    in property <string> action-text: "Sign in";
+    in property <string> password-placeholder: "Password";
+    in property <string> user-label: "USER";
+    in property <string> session-label: "SESSION";
+    in property <string> power-label: "Shut down";
+    in property <string> restart-label: "Restart";
+    in property <string> hint-text: "A fresh start awaits";
+    in property <string> working-text: "Checking…";
+
+    out property <string> submission-trigger: "programmatic";
+    callback submit(string);
+    callback user-selected(int);
+    callback session-selected(int);
+    callback power-action(string);
+    public function focus-password() { password-input.focus(); }
+    public function submit-password() {
+        if !root.busy && !root.secondary-output {
+            let secret = root.password;
+            root.password = "";
+            root.submit(secret);
+        }
+    }
+    function submit-from(trigger: string) {
+        root.submission-trigger = trigger;
+        root.submit-password();
+        root.submission-trigger = "programmatic";
+    }
+    private property <bool> compact: root.width < 900px;
+    private property <length> card-width: Math.min(390px, root.width - 48px);
+    private property <length> card-height: root.lock-mode ? 342px : root.manual-user && root.users.length > 0 ? 494px : 448px;
+    init => {
+        Palette.color-scheme = ColorScheme.dark;
+
+        Theme.is-aero = false;
+        Theme.font-family = root.default-font-family;
+        Theme.control-surface = #11172a;
+        Theme.control-border = #ffffff20;
+        Theme.surface-hover = #2a3551;
+        Theme.surface-active = #303d5c;
+        Theme.accent = #8b9bef;
+        Theme.menu-bg = #1c2335;
+        Theme.text-primary = #e8ebf7;
+        Theme.text-secondary = #a5b0c8;
+        Theme.text-muted = #95a0bd;
+        Theme.menu-action-size = 32px;
+        Theme.scrollbar-gutter = 12px;
+        Theme.scrollbar-width = 4px;
+        Theme.scrollbar-hover-width = 6px;
+        Theme.scrollbar-min-thumb = 24px;
+        Theme.scrollbar = #7885a6;
+        Theme.scrollbar-hover = #a5b0c8;
+    }
+
+    Image { width: 100%; height: 100%; source: @image-url("background.svg"); image-fit: cover; }
+
+    HorizontalLayout {
+        x: 40px; y: 32px; width: root.width - 80px; height: 32px;
+        spacing: 12px;
+        Rectangle {
+            width: 32px; height: 32px; border-radius: 10px;
+            background: #7986e4;
+            Text { text: "R"; font-size: 21px; font-weight: 700; color: #ffffff; horizontal-alignment: center; vertical-alignment: center; }
+        }
+        Text { text: "rix"; font-size: 23px; font-weight: 600; color: #e6e9f5; vertical-alignment: center; }
+        Rectangle { horizontal-stretch: 1; background: transparent; }
+        if root.compact && root.height < 700px: Text { text: root.time-text; font-size: 15px; color: #c1cae2; vertical-alignment: center; }
+        Text { text: root.layout-text; font-size: 13px; color: #a3aecb; vertical-alignment: center; }
+    }
+
+    if !root.compact || root.height >= 700px: VerticalLayout {
+        x: root.compact ? 24px : root.width * 0.105;
+        y: root.compact ? 92px : (root.height - self.height) / 2 - 12px;
+        width: root.compact ? root.width - 48px : root.width * 0.39;
+        height: root.compact ? 94px : 182px;
+        spacing: 10px;
+        Text {
+            text: root.time-text;
+            color: #f0f1fa; font-size: root.compact ? 58px : 104px; font-weight: 300;
+            horizontal-alignment: root.compact ? center : left;
+        }
+        Text {
+            text: root.date-text; color: #a9b3cf; font-size: root.compact ? 14px : 18px;
+            horizontal-alignment: root.compact ? center : left;
+        }
+    }
+
+    card := Rectangle {
+        visible: !root.secondary-output;
+        x: root.compact ? (root.width - self.width) / 2 : root.width * 0.61 - self.width * 0.15;
+        y: root.compact && root.height >= 700px ? Math.max(195px, (root.height - self.height) / 2 + 40px) : (root.height - self.height) / 2;
+        width: root.card-width;
+        height: root.card-height;
+        border-radius: 24px;
+        border-width: 1px; border-color: #a4b3df28;
+        background: #1c2335f5;
+        VerticalLayout {
+            padding: 30px; spacing: 14px;
+            HorizontalLayout {
+                spacing: 16px; height: 56px;
+                Rectangle {
+                    width: 56px; height: 56px; border-radius: 18px;
+                    background: #8583cc;
+                    Text {
+                        text: "R";
+                        color: #ffffff; font-size: 27px; font-weight: 600;
+                        horizontal-alignment: center; vertical-alignment: center;
+                    }
+                }
+                VerticalLayout {
+                    spacing: 4px; alignment: center;
+                    Text { text: root.title-text; font-size: 17px; font-weight: 600; color: #f0f2fd; overflow: elide; }
+                    Text { text: root.subtitle-text; font-size: 11px; color: #a5b0c8; overflow: elide; }
+                }
+            }
+            Rectangle { height: 1px; background: #ffffff10; }
+            if !root.lock-mode: VerticalLayout {
+                spacing: 6px;
+                Text { text: root.user-label; font-size: 10px; font-weight: 600; color: #95a0bd; }
+                if root.users.length > 0: ComboBox {
+                    model: root.users; current-index <=> root.selected-user;
+                    enabled: !root.busy;
+                    selected(value) => { root.password = ""; root.user-selected(self.current-index); password-input.focus(); }
+                }
+                if root.manual-user: Rectangle {
+                    height: 40px; border-radius: 10px; background: #11172a; border-width: 1px; border-color: #ffffff20;
+                    TextInput { x: 12px; width: parent.width - 24px; height: 100%; text <=> root.username; color: #e8ebf7; font-size: 14px; vertical-alignment: center; enabled: !root.busy; accepted => { password-input.focus(); } }
+                }
+            }
+            if root.lock-mode: Text {
+                text: root.display-name == "" ? root.username : root.display-name;
+                color: #e6eafa; font-size: 16px; font-weight: 600;
+            }
+            Rectangle {
+                height: 48px; border-radius: 12px;
+                background: #101627; border-width: 1px;
+                border-color: password-input.has-focus ? #8b9bef : #ffffff23;
+                animate border-color { duration: 150ms; }
+                password-input := TextInput {
+                    x: 14px; width: parent.width - 28px; height: 100%;
+                    text <=> root.password; input-type: InputType.password;
+                    color: #ecedf6; font-size: 15px; vertical-alignment: center;
+                    enabled: !root.busy;
+                    accepted => { root.submit-from("password-enter"); }
+                }
+                if root.password == "": Text {
+                    x: 14px; width: parent.width - 28px; height: 100%;
+                    text: root.password-placeholder; color: #7885a6; font-size: 14px; vertical-alignment: center;
+                }
+            }
+            if !root.lock-mode && root.sessions.length > 0: HorizontalLayout {
+                height: 32px; spacing: 8px;
+                Text { text: root.session-label; color: #95a0bd; font-size: 10px; vertical-alignment: center; }
+                ComboBox { model: root.sessions; current-index <=> root.selected-session; enabled: !root.busy; selected(value) => { root.session-selected(self.current-index); } }
+            }
+            Rectangle {
+                height: 46px; border-radius: 12px;
+                background: root.busy ? #4a5374 : action-touch.has-hover || action-keys.has-focus ? #8495f4 : #6f82e9;
+                border-width: 1px; border-color: action-keys.has-focus ? #dbe3ff : #ffffff16;
+                forward-focus: action-keys;
+                accessible-role: button; accessible-label: root.action-text;
+                Text { text: root.busy ? root.working-text : root.action-text; color: #ffffff; font-size: 14px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                action-keys := FocusScope { enabled: !root.busy; key-pressed(event) => {
+                    if event.text == Key.Return { root.submit-from("button-enter"); return accept; }
+                    if event.text == " " { root.submit-from("button-space"); return accept; }
+                    reject
+                } }
+                action-touch := TouchArea { enabled: !root.busy; mouse-cursor: pointer; clicked => { root.submit-from("button-click"); } }
+                animate background { duration: 130ms; }
+            }
+            Text {
+                text: root.caps-lock ? "Caps Lock" : root.status;
+                color: root.caps-lock ? #e3c786 : #edb2bc;
+                font-size: 11px; wrap: word-wrap; height: 30px;
+                horizontal-alignment: center; vertical-alignment: center;
+            }
+        }
+    }
+
+    if !root.compact || root.height >= 560px: Text {
+        x: 40px; y: root.height - 58px; height: 38px;
+        width: root.compact ? 140px : 280px;
+        text: root.hint-text; color: #6e7d9d; font-size: 12px; vertical-alignment: center;
+    }
+    if !root.lock-mode && !root.secondary-output && (!root.compact || root.height >= 560px): HorizontalLayout {
+        x: root.width - self.width - 40px; y: root.height - 58px;
+        width: 228px; height: 38px; spacing: 10px;
+        QuietButton { text: root.restart-label; enabled: !root.busy; clicked => { root.power-action("reboot"); } }
+        QuietButton { text: root.power-label; enabled: !root.busy; clicked => { root.power-action("poweroff"); } }
+    }
+}

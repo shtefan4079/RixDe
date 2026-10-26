@@ -1,0 +1,168 @@
+#!/usr/bin/env python3
+"""Prepare shipped theme resources once; run a client with portable XDG assets."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import re
+import shutil
+import stat
+import tarfile
+import tempfile
+import xml.etree.ElementTree as ET
+
+
+def protected(metadata):
+    return metadata.st_uid == 0 and not metadata.st_mode & 0o022
+
+
+def installed_resources(data_dir, digest):
+    """Use only an installer-owned, completed tree for the archive-free path."""
+    root = data_dir / 'rix/theme-resources' / digest
+    if not root.is_absolute():
+        return None
+    current = Path('/')
+    try:
+        for component in root.parts[1:]:
+            current /= component
+            metadata = current.lstat()
+            if not stat.S_ISDIR(metadata.st_mode) or not protected(metadata):
+                return None
+        descriptor = os.open(root / '.complete', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+        try:
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISREG(metadata.st_mode) or not protected(metadata):
+                return None
+            complete = os.read(descriptor, 65)
+        finally:
+            os.close(descriptor)
+        return root if complete == digest.encode('ascii') else None
+    except OSError:
+        return None
+
+
+def prepare(data_dir, cache_dir, prefer_installed=False):
+    roots = []
+    for manifest in sorted((data_dir / 'rix/themes').glob('*/manifest.json')):
+        package = json.loads(manifest.read_text())
+        name = package.get('resources')
+        if not name:
+            continue
+        if Path(name).name != name:
+            raise ValueError('Invalid theme resource archive name')
+        expected = package['resources_sha256']
+        if not isinstance(expected, str) or not re.fullmatch('[a-f0-9]{64}', expected):
+            raise ValueError('Invalid theme resource archive checksum')
+        installed = installed_resources(data_dir, expected) if prefer_installed else None
+        if installed is not None:
+            roots.append(installed)
+            continue
+        archive = manifest.parent / name
+        with archive.open('rb') as source:
+            digest = hashlib.file_digest(source, 'sha256').hexdigest()
+        if digest != expected:
+            raise ValueError('Theme resource archive checksum differs from the manifest')
+        destination = cache_dir / digest
+        if not (destination / '.complete').is_file():
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            temporary = Path(tempfile.mkdtemp(prefix='.unpack-', dir=cache_dir))
+            try:
+                with tarfile.open(archive) as source:
+                    members = source.getmembers()
+                    if len(members) > 200000 or sum(m.size for m in members) > 1024**3:
+                        raise ValueError('Theme resource archive exceeds its limits')
+                    for member in members:
+                        path = PurePosixPath(member.name)
+                        if not path.parts or path.is_absolute() or '..' in path.parts or path.parts[0] not in ('icons', 'plasma', 'aurorae', 'fonts'):
+                            raise ValueError('Theme resource path escapes its data directory')
+                        if not (member.isfile() or member.isdir() or member.issym() or member.islnk()):
+                            raise ValueError('Unsupported theme resource file type')
+                    source.extractall(temporary, filter='data')
+                (temporary / '.complete').write_text(digest)
+                try:
+                    temporary.rename(destination)
+                except OSError:
+                    if not (destination / '.complete').is_file():
+                        raise
+                roots.append(destination)
+            finally:
+                if temporary.exists():
+                    shutil.rmtree(temporary)
+        else:
+            roots.append(destination)
+    return roots
+
+
+def base_fontconfig(cache_dir, configured):
+    """Avoid recursively including our previous generated fontconfig files."""
+    path = Path(configured or '/etc/fonts/fonts.conf')
+    for _ in range(16):
+        if path.parent != cache_dir or not re.fullmatch('fonts-[a-f0-9]{64}\\.conf', path.name):
+            return str(path)
+        try:
+            with path.open('rb') as source:
+                content = source.read(16385)
+            if len(content) > 16384:
+                break
+            include = ET.fromstring(content).find('include')
+            if include is None or not include.text:
+                break
+            path = Path(include.text)
+        except (OSError, ET.ParseError):
+            break
+    return '/etc/fonts/fonts.conf'
+
+
+def environment(data_dir, cache_dir, current):
+    env = dict(current)
+    if env.get('RIX_THEME_RESOURCES_READY') == '1' and env.get('RIX_THEME_RESOURCES_DATA') == str(data_dir):
+        return env
+    roots = prepare(data_dir, cache_dir, prefer_installed=True)
+    paths = [str(data_dir), *(str(root) for root in roots), env.get('XDG_DATA_DIRS', '/usr/local/share:/usr/share')]
+    env['XDG_DATA_DIRS'] = ':'.join(dict.fromkeys(p for value in paths for p in value.split(':') if p))
+    home = Path(env.get('HOME', '/'))
+    cursor = [str(home / '.icons'), str(Path(env.get('XDG_DATA_HOME', home / '.local/share')) / 'icons')]
+    cursor += [str(root / 'icons') for root in roots]
+    cursor += [str(Path(p) / 'icons') for p in env['XDG_DATA_DIRS'].split(':') if p]
+    env['XCURSOR_PATH'] = ':'.join(dict.fromkeys(cursor))
+    if roots:
+        config = ET.Element('fontconfig')
+        ET.SubElement(config, 'include', {'ignore_missing': 'yes'}).text = base_fontconfig(cache_dir, env.get('FONTCONFIG_FILE'))
+        for root in roots:
+            ET.SubElement(config, 'dir').text = str(root / 'fonts')
+        ET.SubElement(config, 'cachedir').text = str(cache_dir / 'fontconfig-cache')
+        content = ET.tostring(config, encoding='utf-8', xml_declaration=True)
+        key = hashlib.sha256(content).hexdigest()
+        fontconfig = cache_dir / ('fonts-' + key + '.conf')
+        if not fontconfig.exists():
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(prefix='.fonts-', dir=cache_dir, delete=False) as output:
+                temporary = Path(output.name)
+                output.write(content)
+            try:
+                temporary.replace(fontconfig)
+            finally:
+                temporary.unlink(missing_ok=True)
+        env['FONTCONFIG_FILE'] = str(fontconfig)
+    env['RIX_THEME_RESOURCES_READY'] = '1'
+    env['RIX_THEME_RESOURCES_DATA'] = str(data_dir)
+    return env
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--data-dir', type=Path, required=True)
+    parser.add_argument('--cache-dir', type=Path)
+    parser.add_argument('--exec', dest='command', nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    cache = args.cache_dir or Path(os.environ.get('XDG_CACHE_HOME', Path.home() / '.cache')) / 'rix/theme-resources'
+    env = environment(args.data_dir.resolve(), cache.resolve(), os.environ)
+    if args.command:
+        os.execvpe(args.command[0], args.command, env)
+    else:
+        print('\n'.join(str(root) for root in prepare(args.data_dir.resolve(), cache.resolve())))
+
+
+if __name__ == '__main__':
+    main()

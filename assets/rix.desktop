@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=RixDe
+Comment=RixDE Wayland session (hardware testing)
+Exec=rix-session --native --experimental-kms --log-session
+TryExec=rix-session
+Type=Application
+DesktopNames=RIX
+Keywords=wayland;desktop;environment;rix;

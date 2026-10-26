@@ -1,0 +1,16 @@
+[package]
+name = "clavis-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Rust client for Clavis and compatible desktop Secret Service providers"
+
+[dependencies]
+oo7 = { path = "../../vendor/oo7/client", default-features = false, features = ["tokio", "native_crypto", "unstable"] }
+serde.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+zbus = { version = "5.19", default-features = false, features = ["tokio"] }
+
+[dev-dependencies]
+tokio.workspace = true

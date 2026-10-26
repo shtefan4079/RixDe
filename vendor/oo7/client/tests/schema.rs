@@ -1,0 +1,220 @@
+#![cfg(all(feature = "schema", feature = "tokio", feature = "native_crypto"))]
+
+use oo7::{ContentType, Secret, SecretSchema, file::UnlockedKeyring};
+
+#[derive(SecretSchema, Debug, Default)]
+#[schema(name = "org.example.Test")]
+struct TestSchema {
+    username: String,
+    port: Option<u16>,
+}
+
+#[tokio::test]
+async fn schema_content_type_and_attributes() {
+    let keyring = UnlockedKeyring::temporary(Secret::random().unwrap())
+        .await
+        .unwrap();
+
+    keyring
+        .create_item(
+            "Text Item",
+            &TestSchema {
+                username: "alice".to_string(),
+                port: Some(8080),
+            },
+            Secret::text("my-password"),
+            true,
+        )
+        .await
+        .unwrap();
+
+    keyring
+        .create_item(
+            "Blob Item",
+            &TestSchema {
+                username: "bob".to_string(),
+                port: None,
+            },
+            Secret::blob(b"binary data"),
+            true,
+        )
+        .await
+        .unwrap();
+
+    let mut text_items = keyring
+        .search_items(&TestSchema {
+            username: "alice".to_string(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(text_items.len(), 1);
+    let text_item = &text_items[0];
+
+    assert_eq!(
+        text_item.attributes().get("xdg:content-type").unwrap(),
+        "text/plain"
+    );
+    assert_eq!(text_item.secret().content_type(), ContentType::Text);
+
+    let schema = text_item.attributes_as::<TestSchema>().unwrap();
+    assert_eq!(schema.username, "alice");
+    assert_eq!(schema.port, Some(8080));
+
+    let unlocked_item = &mut text_items[0];
+    unlocked_item.set_attributes(&TestSchema {
+        username: "alice".to_string(),
+        port: Some(9090),
+    });
+
+    assert_eq!(
+        unlocked_item.attributes().get("xdg:content-type").unwrap(),
+        "text/plain"
+    );
+    assert_eq!(unlocked_item.secret().content_type(), ContentType::Text);
+
+    let updated_schema = unlocked_item.attributes_as::<TestSchema>().unwrap();
+    assert_eq!(updated_schema.username, "alice");
+    assert_eq!(updated_schema.port, Some(9090));
+
+    let blob_items = keyring
+        .search_items(&TestSchema {
+            username: "bob".to_string(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(blob_items.len(), 1);
+    let blob_item = &blob_items[0];
+
+    assert_eq!(
+        blob_item.attributes().get("xdg:content-type").unwrap(),
+        "application/octet-stream"
+    );
+    assert_eq!(blob_item.secret().content_type(), ContentType::Blob);
+
+    let schema = blob_item.attributes_as::<TestSchema>().unwrap();
+    assert_eq!(schema.username, "bob");
+    assert_eq!(schema.port, None);
+}
+
+#[derive(SecretSchema, Debug, Default)]
+#[schema(name = "org.example.DontMatch", dont_match_name)]
+struct DontMatchSchema {
+    username: String,
+    port: Option<u16>,
+}
+
+#[tokio::test]
+async fn dont_match_name_excludes_schema_from_search() {
+    use oo7::AsAttributes;
+
+    let schema = DontMatchSchema {
+        username: "alice".to_string(),
+        port: Some(8080),
+    };
+
+    let store_attrs = schema.as_attributes();
+    assert_eq!(
+        store_attrs.get("xdg:schema").map(String::as_str),
+        Some("org.example.DontMatch")
+    );
+    assert_eq!(
+        store_attrs.get("username").map(String::as_str),
+        Some("alice")
+    );
+
+    let search_attrs = schema.search_attributes();
+    assert!(!search_attrs.contains_key("xdg:schema"));
+    assert_eq!(
+        search_attrs.get("username").map(String::as_str),
+        Some("alice")
+    );
+    assert_eq!(search_attrs.get("port").map(String::as_str), Some("8080"));
+
+    // Exact replacement matching still includes the schema identity.
+    let replacement_attrs = schema.as_search_attributes();
+    assert_eq!(
+        replacement_attrs.get("xdg:schema").map(String::as_str),
+        Some("org.example.DontMatch")
+    );
+}
+
+#[tokio::test]
+async fn dont_match_name_search_finds_any_schema() {
+    let keyring = UnlockedKeyring::temporary(Secret::random().unwrap())
+        .await
+        .unwrap();
+
+    // Create item with the regular TestSchema
+    keyring
+        .create_item(
+            "Regular Item",
+            &TestSchema {
+                username: "alice".to_string(),
+                port: Some(8080),
+            },
+            Secret::text("password1"),
+            true,
+        )
+        .await
+        .unwrap();
+
+    // Search with DontMatchSchema
+    let items = keyring
+        .search_items(&DontMatchSchema {
+            username: "alice".to_string(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].secret(), Secret::text("password1"));
+}
+
+#[derive(SecretSchema, Debug, Default)]
+#[schema(name = "org.example.ErrorTest")]
+struct ErrorSchema {
+    required_field: String,
+    optional_number: Option<u16>,
+}
+
+#[tokio::test]
+async fn schema_error_handling() {
+    use std::collections::HashMap;
+
+    let mut attrs = HashMap::new();
+    attrs.insert(
+        "xdg:schema".to_string(),
+        "org.example.ErrorTest".to_string(),
+    );
+    attrs.insert("required_field".to_string(), "value".to_string());
+    attrs.insert("optional_number".to_string(), "42".to_string());
+
+    let valid: Result<ErrorSchema, _> = attrs.clone().try_into();
+    assert!(valid.is_ok());
+    let schema = valid.unwrap();
+    assert_eq!(schema.required_field, "value");
+    assert_eq!(schema.optional_number, Some(42));
+
+    let mut missing_field = attrs.clone();
+    missing_field.remove("required_field");
+    let result: Result<ErrorSchema, _> = missing_field.try_into();
+    assert!(result.is_err());
+
+    let mut wrong_schema = attrs.clone();
+    wrong_schema.insert(
+        "xdg:schema".to_string(),
+        "org.example.WrongSchema".to_string(),
+    );
+    let result: Result<ErrorSchema, _> = wrong_schema.try_into();
+    assert!(result.is_err());
+
+    let mut invalid_value = attrs.clone();
+    invalid_value.insert("optional_number".to_string(), "not_a_number".to_string());
+    let result: Result<ErrorSchema, _> = invalid_value.try_into();
+    assert!(result.is_err());
+}

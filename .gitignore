@@ -1,0 +1,14 @@
+target/
+/.qa/
+/docs/screenshots/
+*.log
+*.tmp
+*.swp
+core
+core.*
+.env
+.env.*
+*.pem
+*.key
+__pycache__/
+.DS_Store

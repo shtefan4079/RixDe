@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="rix_surface_effects_v1">
+  <copyright>Copyright 2026 RixDe contributors. SPDX-License-Identifier: MIT</copyright>
+  <interface name="rix_surface_effects_manager_v1" version="2">
+    <description summary="Subpixel geometry for backdrop materials">
+      Optional extension to KDE blur. Shapes are surface-local logical coordinates.
+      Rendering uses analytic coverage, while wl_region remains the input contract.
+      No widget names or desktop layout are part of this protocol.
+    </description>
+    <request name="destroy" type="destructor"/>
+    <request name="get_surface">
+      <arg name="id" type="new_id" interface="rix_surface_effects_v1"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+  </interface>
+  <interface name="rix_surface_effects_v1" version="2">
+    <description summary="Double buffered rounded backdrop region">
+      clear and add_rectangle construct a replacement region. commit stages it for
+      the next wl_surface.commit. At most 16 shapes are retained. Their coverage
+      is combined by maximum, so overlapping shapes never apply an effect twice.
+      Opacity is coverage strength, independent of the material's color opacity.
+    </description>
+    <request name="destroy" type="destructor"/>
+    <request name="clear"/>
+    <request name="add_rectangle">
+      <arg name="x" type="fixed"/><arg name="y" type="fixed"/>
+      <arg name="width" type="fixed"/><arg name="height" type="fixed"/>
+      <arg name="radius" type="fixed"/><arg name="opacity" type="fixed"/>
+    </request>
+    <request name="commit"/>
+    <request name="add_clipped_rectangle" since="2">
+      <description summary="Intersect a moving shape with a fixed viewport">
+        Geometry and radius describe the complete shape before clipping. The
+        clip rectangle is surface-local, axis-aligned, and does not deform it.
+        All dimensions must be positive; invalid shapes are ignored.
+      </description>
+      <arg name="x" type="fixed"/><arg name="y" type="fixed"/>
+      <arg name="width" type="fixed"/><arg name="height" type="fixed"/>
+      <arg name="radius" type="fixed"/><arg name="opacity" type="fixed"/>
+      <arg name="clip_x" type="fixed"/><arg name="clip_y" type="fixed"/>
+      <arg name="clip_width" type="fixed"/><arg name="clip_height" type="fixed"/>
+    </request>
+  </interface>
+</protocol>

@@ -1,0 +1,13 @@
+[package]
+name = "rix-assets"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+[dependencies]
+xcursor = "0.3"
+resvg = { version = "0.47", default-features = false, features = ["text", "system-fonts", "memmap-fonts"] }
+anyhow.workspace = true
+image.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

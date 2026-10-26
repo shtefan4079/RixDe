@@ -1,0 +1,50 @@
+name: Draft alpha release
+
+on:
+  push:
+    tags:
+      - "v*-alpha.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    uses: ./.github/workflows/quality.yml
+
+  draft-source-release:
+    needs: quality
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Build source archive and checksum
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]
+          root_version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')"
+          rar_version="$(python3 -c 'import tomllib; print(tomllib.load(open("crates/rix-rar/Cargo.toml", "rb"))["package"]["version"])')"
+          [[ "$root_version" == "$rar_version" ]]
+          [[ "$RELEASE_TAG" == "v$root_version" ]]
+          archive="rixde-${RELEASE_TAG}-source.tar.gz"
+          git archive --format=tar.gz --prefix="rixde-${RELEASE_TAG}/" "$GITHUB_SHA" > "$archive"
+          sha256sum "$archive" > SHA256SUMS
+          sha256sum -c SHA256SUMS
+      - name: Create draft for maintainer review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            "rixde-${RELEASE_TAG}-source.tar.gz" SHA256SUMS \
+            --draft --verify-tag --title "RixDE ${RELEASE_TAG}" \
+            --notes-file docs/ALPHA_RELEASE_NOTES.md

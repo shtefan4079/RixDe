@@ -1,0 +1,35 @@
+[package]
+name = "rix-shell"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "rix-shell"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+gio = { workspace = true, features = ["v2_60"] }
+rix-services.workspace = true
+image.workspace = true
+rix-assets.workspace = true
+rix-core = { workspace = true }
+rix-config = { workspace = true }
+rix-ipc = { workspace = true }
+rix-shell-adapter = { workspace = true }
+slint = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+serde_json = { workspace = true }
+chrono = "0.4"
+
+[build-dependencies]
+slint-build = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+i-slint-backend-testing = "=1.17.1"

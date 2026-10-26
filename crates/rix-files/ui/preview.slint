@@ -1,0 +1,309 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { ScrollArea } from "../../../ui/common/scroll_area.slint";
+import { MenuStyle, MenuSurface, MenuRow, MenuHost, SharedMenuItem } from "../../../ui/common/context_menu.slint";
+import { Button, IconButton, Field } from "controls.slint";
+
+export global FilePreview {
+    in-out property <int> focus-generation;
+    in-out property <bool> external-allowed: true;
+    in-out property <bool> visible;
+    in-out property <string> title;
+    in-out property <string> subtitle;
+    in-out property <string> body;
+    in-out property <image> page-image;
+    in-out property <int> image-width;
+    in-out property <int> image-height;
+
+    in-out property <int> kind;
+    in-out property <int> page;
+    in-out property <int> page-count: 1;
+    in-out property <float> zoom: 1;
+    in-out property <bool> busy;
+    in-out property <string> message;
+    in-out property <string> note;
+    in-out property <string> query;
+    in-out property <string> search-status;
+    in-out property <int> match-start: -1;
+    in-out property <int> match-end: -1;
+    in-out property <int> match-generation;
+    callback close();
+    callback open-externally();
+    callback open-with();
+    callback page-requested(int);
+    callback zoom-requested(float);
+    callback find-requested(string, bool);
+}
+
+export component PreviewPanel inherits Rectangle {
+    private property <int> focus-generation: FilePreview.focus-generation;
+    changed focus-generation => { root.focus-preview(); }
+    in property <bool> desktop-material;
+    background: root.desktop-material ? transparent : Theme.window-background.with-alpha(1);
+    clip: true;
+    private property <bool> search-open;
+    private property <bool> has-text: FilePreview.kind >= 2 && FilePreview.body != "";
+    private property <bool> has-image: FilePreview.kind <= 1 && FilePreview.image-width > 0 && FilePreview.image-height > 0;
+    private property <length> body-font-size: Theme.font-size-lg * FilePreview.zoom;
+    private property <length> menu-x;
+    private property <length> menu-y;
+    private property <int> context-selection: -1;
+    private property <int> menu-owner;
+    private property <bool> native-menu-open;
+    private property <int> menu-event: MenuHost.event-generation;
+    private property <int> active-menu-owner: MenuHost.active-owner;
+    changed active-menu-owner => {
+        if root.native-menu-open && root.active-menu-owner > 0 && root.active-menu-owner != root.menu-owner {
+            root.native-menu-open = false;
+        }
+    }
+    private property <[SharedMenuItem]> menu-items: [
+        {action: "copy", label: @tr("Copy"), shortcut: "Ctrl+C", enabled: root.context-can-copy, separator: false, destructive: false, checked: false},
+        {action: "select-all", label: @tr("Select All"), shortcut: "Ctrl+A", enabled: true, separator: false, destructive: false, checked: false},
+    ];
+    private property <bool> context-can-copy: text-body.cursor-position-byte-offset != text-body.anchor-position-byte-offset;
+    private property <int> match-generation: FilePreview.match-generation;
+    private property <string> document-title: FilePreview.title;
+    private property <int> current-page: FilePreview.page;
+    out property <length> document-y: text-scroll.viewport-y;
+    init => { root.focus-preview(); }
+
+    public function focus-preview() { keys.focus(); }
+    function change-zoom(value: float) { FilePreview.zoom-requested(Math.max(0.25, Math.min(4, value))); }
+    function open-search() { if root.has-text { root.search-open = true; find.focus-input(); } }
+    function preview-key(event: KeyEvent) -> EventResult {
+        if event.text == Key.Escape {
+            if root.search-open { root.search-open = false; keys.focus(); }
+            else { FilePreview.close(); }
+            return accept;
+        }
+        if event.modifiers.control {
+            if event.text == "f" || event.text == "F" { root.open-search(); return accept; }
+            if event.text == "+" || event.text == "=" { root.change-zoom(FilePreview.zoom * 1.25); return accept; }
+            if event.text == "-" { root.change-zoom(FilePreview.zoom / 1.25); return accept; }
+            if event.text == "0" { root.change-zoom(1); return accept; }
+        }
+        if FilePreview.kind == 0 && !FilePreview.busy {
+            if event.text == Key.PageDown || event.text == Key.RightArrow { FilePreview.page-requested(Math.min(FilePreview.page-count - 1, FilePreview.page + 1)); return accept; }
+            if event.text == Key.PageUp || event.text == Key.LeftArrow { FilePreview.page-requested(Math.max(0, FilePreview.page - 1)); return accept; }
+            if event.text == Key.Home { FilePreview.page-requested(0); return accept; }
+            if event.text == Key.End { FilePreview.page-requested(FilePreview.page-count - 1); return accept; }
+        }
+        reject
+    }
+    function show-text-menu(x: length, y: length) {
+        root.menu-x = Math.max(Theme.spacing-xs, Math.min(root.width - MenuStyle.minimum-width - Theme.spacing-xs, x));
+        root.menu-y = Math.max(Theme.spacing-xs, Math.min(root.height - Theme.menu-row-height * 2 - Theme.context-menu-padding * 2 - Theme.spacing-xs, y));
+        root.context-selection = -1;
+        if root.menu-owner == 0 { root.menu-owner = MenuHost.register-owner(); }
+        text-menu.close();
+        root.native-menu-open = root.menu-owner > 0 && MenuHost.request(root.menu-owner, root.menu-items,
+            root.absolute-position.x + root.menu-x, root.absolute-position.y + root.menu-y,
+            MenuStyle.minimum-width, Theme.menu-row-height * 2 + Theme.context-menu-padding * 2,
+            @tr("Document Text"));
+        if !root.native-menu-open { text-menu.show(); }
+    }
+    function close-text-menu() {
+        if root.native-menu-open { root.native-menu-open = false; MenuHost.close(root.menu-owner); }
+        text-menu.close(); text-body.focus();
+    }
+    changed menu-event => {
+        if root.menu-owner > 0 && root.native-menu-open && MenuHost.event-owner == root.menu-owner {
+            root.native-menu-open = false;
+            if MenuHost.event-unavailable && root.has-text { text-menu.show(); }
+            else if MenuHost.event-action == "copy" { root.context-action(0); }
+            else if MenuHost.event-action == "select-all" { root.context-action(1); }
+            else { text-body.focus(); }
+        }
+    }
+    function context-action(index: int) {
+        if index == 0 && root.context-can-copy { text-body.copy(); }
+        if index == 1 { text-body.select-all(); }
+        root.close-text-menu();
+    }
+    changed match-generation => {
+        if FilePreview.match-start >= 0 && FilePreview.match-end >= FilePreview.match-start {
+            text-body.set-selection-offsets(FilePreview.match-start, FilePreview.match-end);
+        }
+    }
+    changed document-title => { text-scroll.viewport-y = 0px; image-scroll.viewport-y = 0px; image-scroll.viewport-x = 0px; root.search-open = false; if root.native-menu-open || text-menu.is-open { root.close-text-menu(); } }
+    changed current-page => { image-scroll.viewport-y = 0px; image-scroll.viewport-x = 0px; }
+
+    keys := FocusScope {
+        key-pressed(event) => { root.preview-key(event) }
+    }
+    VerticalLayout {
+        spacing: 0px;
+        Rectangle {
+            min-height: Theme.menu-action-size + Theme.spacing-xl * 2;
+            max-height: self.min-height;
+            background: root.desktop-material ? transparent : Theme.control-surface;
+            HorizontalLayout {
+                padding: Theme.spacing-lg;
+                spacing: Theme.default-spacing;
+                VerticalLayout {
+                    min-width: 0px;
+                    horizontal-stretch: 1;
+                    spacing: Theme.spacing-xs;
+                    Text { min-width: 0px; horizontal-stretch: 1; text: FilePreview.title; color: Theme.text-primary; font-size: Theme.font-size-xl; font-weight: 600; overflow: elide; vertical-alignment: center; }
+                    Text { min-width: 0px; horizontal-stretch: 1; text: FilePreview.subtitle; color: Theme.text-secondary; font-size: Theme.font-size-sm; overflow: elide; vertical-alignment: center; }
+                }
+                Button { text: @tr("Open"); enabled: FilePreview.external-allowed && !FilePreview.busy; clicked => { FilePreview.open-externally(); } }
+                Button { text: @tr("Open With…"); enabled: FilePreview.external-allowed && !FilePreview.busy; clicked => { FilePreview.open-with(); } }
+                IconButton { icon: @image-url("../assets/close.svg"); accessible-name: @tr("Close Preview"); clicked => { FilePreview.close(); } }
+            }
+        }
+        Rectangle { min-height: 1px; max-height: 1px; background: Theme.divider; }
+        Rectangle {
+            min-height: Theme.menu-action-size + Theme.default-spacing * 2;
+            max-height: self.min-height;
+            HorizontalLayout {
+                padding-left: Theme.spacing-lg; padding-right: Theme.spacing-lg;
+                padding-top: Theme.spacing-xs; padding-bottom: Theme.spacing-xs;
+                spacing: Theme.spacing-xs;
+                IconButton { icon: @image-url("../assets/left.svg"); accessible-name: @tr("Previous Page"); visible: FilePreview.kind == 0; enabled: !FilePreview.busy && FilePreview.page > 0; clicked => { FilePreview.page-requested(FilePreview.page - 1); } }
+                Text { visible: FilePreview.kind == 0; text: @tr("Page {0} of {1}", FilePreview.page + 1, FilePreview.page-count); color: Theme.text-secondary; font-size: Theme.font-size-md; vertical-alignment: center; horizontal-stretch: 0; }
+                IconButton { icon: @image-url("../assets/right.svg"); accessible-name: @tr("Next Page"); visible: FilePreview.kind == 0; enabled: !FilePreview.busy && FilePreview.page + 1 < FilePreview.page-count; clicked => { FilePreview.page-requested(FilePreview.page + 1); } }
+                Rectangle { horizontal-stretch: 1; }
+                Button { text: "−"; accessible-name: @tr("Zoom Out"); enabled: !FilePreview.busy && FilePreview.zoom > 0.25; clicked => { root.change-zoom(FilePreview.zoom / 1.25); } }
+                Text { text: Math.round(FilePreview.zoom * 100) + "%"; color: Theme.text-secondary; font-size: Theme.font-size-md; min-width: Theme.font-size-md * 3.7; vertical-alignment: center; horizontal-alignment: center; }
+                Button { text: "+"; accessible-name: @tr("Zoom In"); enabled: !FilePreview.busy && FilePreview.zoom < 4; clicked => { root.change-zoom(FilePreview.zoom * 1.25); } }
+                Button { text: @tr("Fit"); enabled: !FilePreview.busy; clicked => { root.change-zoom(1); } }
+                Rectangle { min-width: Theme.spacing-lg; max-width: self.min-width; }
+                Button { text: @tr("Find"); visible: root.has-text; active: root.search-open; clicked => { root.open-search(); } }
+            }
+        }
+        Rectangle { min-height: 1px; max-height: 1px; background: Theme.divider; }
+        Rectangle {
+            visible: root.search-open;
+            min-height: root.search-open ? Theme.menu-action-size + Theme.default-spacing * 2 : 0px;
+            max-height: self.min-height;
+            background: Theme.control-surface;
+            HorizontalLayout {
+                padding-left: Theme.spacing-xl; padding-right: Theme.spacing-xl;
+                padding-top: Theme.spacing-xs; padding-bottom: Theme.spacing-xs;
+                spacing: Theme.default-spacing;
+                find := Field {
+                    text <=> FilePreview.query;
+                    placeholder: @tr("Find in Document");
+                    edited(query) => { FilePreview.find-requested(query, false); }
+                    accepted(query) => { FilePreview.find-requested(query, false); }
+                    escape => { root.search-open = false; keys.focus(); }
+                }
+                Text { text: FilePreview.search-status; color: Theme.text-secondary; font-size: Theme.font-size-sm; horizontal-stretch: 0; vertical-alignment: center; }
+                IconButton { icon: @image-url("../assets/up.svg"); accessible-name: @tr("Previous Match"); clicked => { FilePreview.find-requested(FilePreview.query, true); } }
+                IconButton { icon: @image-url("../assets/right.svg"); accessible-name: @tr("Next Match"); clicked => { FilePreview.find-requested(FilePreview.query, false); } }
+                IconButton { icon: @image-url("../assets/close.svg"); accessible-name: @tr("Close Search"); clicked => { root.search-open = false; keys.focus(); } }
+            }
+        }
+        content := Rectangle {
+            vertical-stretch: 1;
+            clip: true;
+            background: root.desktop-material ? transparent : Theme.sidebar-background.with-alpha(1);
+            image-scroll := Flickable {
+                visible: root.has-image && FilePreview.message == "";
+                width: parent.width; height: parent.height;
+                interactive: true;
+                private property <length> fitted-width: Math.max(1px, self.width - Theme.spacing-xl * 4);
+                private property <length> page-width: self.fitted-width * FilePreview.zoom;
+                private property <length> page-height: self.page-width * FilePreview.image-height / Math.max(1, FilePreview.image-width);
+                viewport-width: Math.max(self.width, self.page-width + Theme.spacing-xl * 4);
+                viewport-height: Math.max(self.height, self.page-height + Theme.spacing-xl * 4);
+                Rectangle {
+                    x: (image-scroll.viewport-width - self.width) / 2;
+                    y: (image-scroll.viewport-height - self.height) / 2;
+                    width: image-scroll.page-width; height: image-scroll.page-height;
+                    background: FilePreview.kind == 0 ? #ffffff : Theme.value-bg;
+                    border-radius: FilePreview.kind == 0 ? 0px : Theme.radius-sm;
+                    Image { width: parent.width; height: parent.height; source: FilePreview.page-image; image-fit: contain; }
+                }
+            }
+            text-scroll := ScrollArea {
+                visible: root.has-text && FilePreview.message == "";
+                x: Theme.spacing-xl; y: Theme.spacing-xl;
+                width: parent.width - Theme.spacing-xl * 2; height: parent.height - Theme.spacing-xl * 2;
+                content-height: text-body.preferred-height + Theme.spacing-xl * 2;
+                TouchArea {
+                    width: text-scroll.content-width; height: Math.max(text-scroll.height, text-scroll.content-height);
+                    mouse-cursor: text;
+                    pointer-event(event) => {
+                        if event.button == PointerEventButton.right && event.kind == PointerEventKind.up {
+                            root.show-text-menu(self.mouse-x + text-scroll.x, self.mouse-y + text-scroll.y + text-scroll.viewport-y + content.y);
+                        }
+                    }
+                    text-body := TextInput {
+                        x: Theme.spacing-lg; y: Theme.spacing-lg;
+                        width: Math.max(1px, text-scroll.content-width - Theme.spacing-lg * 2);
+                        height: self.preferred-height;
+                        text: FilePreview.body;
+                        read-only: true;
+                        single-line: false;
+                        wrap: word-wrap;
+                        color: Theme.text-primary;
+                        font-family: FilePreview.kind == 3 ? Theme.font-family : "monospace";
+                        font-size: root.body-font-size;
+                        selection-background-color: Theme.accent;
+                        selection-foreground-color: Theme.text-primary;
+                        page-height: text-scroll.height;
+                        accessible-label: @tr("Document Text");
+                        accessible-read-only: true;
+                        key-pressed(event) => {
+                            if event.text == Key.Menu || (event.text == Key.F10 && event.modifiers.shift) {
+                                root.show-text-menu(Theme.spacing-xl, content.y + Theme.spacing-xl); return accept;
+                            }
+                            root.preview-key(event)
+                        }
+                        cursor-position-changed(position) => {
+                            text-scroll.reveal(position.y, position.y + root.body-font-size * 1.8);
+                        }
+                    }
+                }
+            }
+            if FilePreview.message != "": VerticalLayout {
+                padding: Theme.spacing-xl * 3;
+                alignment: center;
+                spacing: Theme.spacing-xl;
+                Text { text: @tr("Preview Unavailable"); color: Theme.text-primary; font-size: Theme.font-size-xl; font-weight: 600; horizontal-alignment: center; }
+                Text { text: FilePreview.message; color: Theme.text-secondary; font-size: Theme.font-size-md; wrap: word-wrap; horizontal-alignment: center; }
+                HorizontalLayout { alignment: center; Button { text: @tr("Open With…"); enabled: FilePreview.external-allowed && !FilePreview.busy; clicked => { FilePreview.open-with(); } } }
+            }
+            if FilePreview.busy: Rectangle {
+                background: Theme.window-background.with-alpha(0.8);
+                width: parent.width; height: parent.height;
+                TouchArea { }
+                Text { text: @tr("Loading Preview…"); color: Theme.text-secondary; font-size: Theme.font-size-lg; horizontal-alignment: center; vertical-alignment: center; width: parent.width; height: parent.height; }
+            }
+        }
+        if FilePreview.note != "": Rectangle {
+            min-height: note.preferred-height + Theme.default-spacing * 2;
+            max-height: self.min-height;
+            background: Theme.control-surface;
+            note := Text { x: Theme.spacing-xl; y: Theme.default-spacing; width: parent.width - Theme.spacing-xl * 2; text: FilePreview.note; color: Theme.text-secondary; font-size: Theme.font-size-sm; wrap: word-wrap; }
+        }
+    }
+    text-menu := PopupWindow {
+        x: root.menu-x; y: root.menu-y;
+        width: MenuStyle.minimum-width;
+        height: Theme.menu-row-height * 2 + Theme.context-menu-padding * 2;
+        close-policy: close-on-click-outside;
+        MenuSurface {
+            width: parent.width; height: parent.height;
+            opaque: !MenuStyle.native-popups;
+            FocusScope {
+                init => { self.focus(); }
+                key-pressed(event) => {
+                    if event.text == Key.Escape { root.close-text-menu(); return accept; }
+                    if event.text == Key.DownArrow || event.text == Key.UpArrow { root.context-selection = root.context-can-copy && root.context-selection != 0 ? 0 : 1; return accept; }
+                    if event.text == Key.Home { root.context-selection = root.context-can-copy ? 0 : 1; return accept; }
+                    if event.text == Key.End { root.context-selection = 1; return accept; }
+                    if event.text == Key.Return || event.text == " " { if root.context-selection >= 0 { root.context-action(root.context-selection); } return accept; }
+                    accept
+                }
+            }
+            VerticalLayout {
+                padding: Theme.context-menu-padding; spacing: 0px;
+                MenuRow { label: @tr("Copy"); shortcut: "Ctrl+C"; disabled: !root.context-can-copy; selected: root.context-selection == 0; hovered => { root.context-selection = 0; } activated => { root.context-action(0); } }
+                MenuRow { label: @tr("Select All"); shortcut: "Ctrl+A"; selected: root.context-selection == 1; hovered => { root.context-selection = 1; } activated => { root.context-action(1); } }
+            }
+        }
+    }
+}

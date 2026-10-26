@@ -1,0 +1,75 @@
+import { Icons } from "../icons.slint";
+import { Theme } from "../theme.slint";
+
+export component AppIcon inherits Rectangle {
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    in property <string> letter: "";
+    in property <length> icon-size: Theme.icon-size-lg;
+
+    width: root.icon-size;
+    height: root.icon-size;
+    border-radius: Theme.radius-md;
+    clip: false;
+
+    if root.has-icon: Image {
+        width: 100%;
+        height: 100%;
+        source: root.icon;
+        image-fit: contain;
+    }
+
+    if !root.has-icon: Image {
+        width: 100%; height: 100%; source: Icons.applications;
+        colorize: Theme.text-secondary; image-fit: contain;
+    }
+}
+
+export component StepperButton inherits Rectangle {
+    in property <string> label: "";
+    callback clicked();
+
+    width: 28px;
+    height: 28px;
+    border-radius: Theme.radius-md;
+    background: touch.has-hover ? Theme.overlay-hover : Theme.overlay-idle;
+
+    animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+    Text {
+        text: root.label;
+        color: Theme.text-primary;
+        font-size: Theme.font-size-lg;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component ValuePill inherits Rectangle {
+    in property <string> text: "";
+
+    width: 56px;
+    height: 28px;
+    border-radius: Theme.radius-md;
+    background: Theme.value-bg;
+
+    Text {
+        text: root.text;
+        color: Theme.text-primary;
+        font-size: Theme.font-size-md;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component Divider inherits Rectangle {
+    width: 1px;
+    height: 24px;
+    background: Theme.divider;
+}

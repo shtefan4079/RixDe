@@ -1,0 +1,30 @@
+[package]
+name = "kwallet-parser"
+description = "Read-only parser for KWallet file format"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+rust-version.workspace = true
+exclude.workspace = true
+
+[dependencies]
+base64.workspace = true
+blowfish = "0.10"
+cbc.workspace = true
+cipher = { version = "0.5", features = ["block-padding"] }
+ecb = "0.2"
+md-5.workspace = true
+pbkdf2 = { workspace = true, default-features = false, features = ["hmac"] }
+serde.workspace = true
+serde_json.workspace = true
+sha1 = "0.11"
+sha2.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+hex = "0.4"

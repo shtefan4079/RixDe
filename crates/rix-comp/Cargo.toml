@@ -1,0 +1,43 @@
+[package]
+name = "rix-comp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "rix-comp"
+path = "src/main.rs"
+
+[dependencies]
+rix-protocols = { workspace = true, features = ["server"] }
+libc.workspace = true
+rix-services.workspace = true
+rix-assets.workspace = true
+rix-core = { workspace = true }
+rix-config = { workspace = true }
+rix-ipc = { workspace = true }
+smithay = { workspace = true }
+wayland-server = { workspace = true }
+wayland-protocols = { workspace = true }
+wayland-protocols-misc = { workspace = true }
+wayland-protocols-wlr = { workspace = true }
+wayland-protocols-plasma = { version = "0.3", features = ["server"] }
+xkbcommon = { workspace = true }
+calloop = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+image = { workspace = true }
+chrono = { workspace = true }
+serde_json.workspace = true
+winit = "0.30"
+
+[dev-dependencies]
+serde_json = { workspace = true }
+rix-protocols = { workspace = true, features = ["client"] }
+wayland-protocols-plasma = { version = "0.3", features = ["client"] }
+tempfile = "3"
+wayland-client.workspace = true

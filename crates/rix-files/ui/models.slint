@@ -1,0 +1,5 @@
+export struct FileItem { name: string, detail: string, size: string, modified: string, icon: image, is-dir: bool, is-symlink: bool, selected: bool, cut: bool, focused: bool, is-hidden: bool }
+export struct GridRow { items: [FileItem], start: int }
+export struct TabItem { label: string }
+export struct PlaceItem { label: string, icon: image, active: bool, removable: bool, group-start: bool }
+export struct AppItem { label: string, icon: image }

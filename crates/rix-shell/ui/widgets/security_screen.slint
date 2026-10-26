@@ -1,0 +1,192 @@
+import { Icons } from "../icons.slint";
+import { Theme } from "../theme.slint";
+
+export struct SecurityActionItem {
+    id: string,
+    label: string,
+    icon: image,
+    has-icon: bool,
+    danger: bool,
+}
+
+component SecurityButton inherits Rectangle {
+    in property <string> label;
+    in property <image> icon;
+    in property <bool> has-icon;
+    in property <bool> is-selected;
+    in property <bool> is-danger;
+    callback clicked();
+
+    height: 44px;
+    border-radius: Theme.radius-md;
+    background: root.is-selected || touch.has-hover ?
+        (root.is-danger ? Theme.danger-bg : Theme.surface-hover) :
+        (root.is-danger ? Theme.danger-bg.with-alpha(0.2) : Theme.overlay-idle);
+    border-width: 1px;
+    border-color: root.is-selected ?
+        (root.is-danger ? Theme.danger : Theme.accent) :
+        (touch.has-hover ? Theme.border-highlight : Theme.control-border.with-alpha(0.3));
+
+    animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+    animate border-color { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        spacing: 14px;
+        alignment: start;
+
+        if root.has-icon: Rectangle {
+            width: 22px;
+            height: 22px;
+            y: (parent.height - self.height) / 2;
+            Image {
+                width: 22px;
+                height: 22px;
+                source: root.icon;
+                image-fit: contain;
+                colorize: root.is-danger ? Theme.danger : (root.is-selected ? Theme.accent : Theme.text-primary);
+            }
+        }
+
+        Text {
+            text: root.label;
+            color: root.is-danger ? Theme.danger : Theme.text-primary;
+            font-size: Theme.font-size-md;
+            font-weight: 600;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+    }
+}
+
+export component SecurityScreen inherits Rectangle {
+    in property <[SecurityActionItem]> items;
+    in-out property <int> selected-index: 0;
+    callback action-chosen(string);
+    callback dismissed();
+
+    width: 100%;
+    height: 100%;
+    background: #0000008c;
+
+    TouchArea {
+        clicked => { root.dismissed(); }
+    }
+
+    focus-scope := FocusScope {
+        width: 100%;
+        height: 100%;
+        init => { self.focus(); }
+        key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.dismissed();
+                return accept;
+            }
+            if event.text == Key.UpArrow {
+                if root.items.length > 0 {
+                    root.selected-index = Math.mod(root.selected-index - 1 + root.items.length, root.items.length);
+                }
+                return accept;
+            }
+            if event.text == Key.DownArrow {
+                if root.items.length > 0 {
+                    root.selected-index = Math.mod(root.selected-index + 1, root.items.length);
+                }
+                return accept;
+            }
+            if event.text == Key.Return || event.text == " " {
+                if root.selected-index >= 0 && root.selected-index < root.items.length {
+                    root.action-chosen(root.items[root.selected-index].id);
+                }
+                return accept;
+            }
+            reject
+        }
+
+        card := Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            width: Math.min(360px, parent.width - 32px);
+            height: content.preferred-height;
+            border-radius: Theme.radius-lg;
+            background: Theme.menu-bg;
+            border-width: 1px;
+            border-color: Theme.border-highlight;
+            clip: true;
+
+            TouchArea { width: 100%; height: 100%; }
+
+            content := VerticalLayout {
+                padding-left: 20px;
+                padding-right: 20px;
+                padding-top: 24px;
+                padding-bottom: 20px;
+                spacing: 12px;
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: center;
+                    Image {
+                        width: 28px;
+                        height: 28px;
+                        source: Icons.power;
+                        colorize: Theme.accent;
+                        image-fit: contain;
+                    }
+                    Text {
+                        text: @tr("Security Options");
+                        color: Theme.text-primary;
+                        font-size: Theme.font-size-lg;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Rectangle {
+                    height: 1px;
+                    background: Theme.divider;
+                }
+
+                for item[index] in root.items: SecurityButton {
+                    label: item.label;
+                    icon: item.icon;
+                    has-icon: item.has-icon;
+                    is-danger: item.danger;
+                    is-selected: root.selected-index == index;
+                    clicked => {
+                        root.selected-index = index;
+                        root.action-chosen(item.id);
+                    }
+                }
+
+                Rectangle { height: 4px; }
+
+                Rectangle {
+                    height: 38px;
+                    border-radius: Theme.radius-md;
+                    background: cancel-touch.has-hover ? Theme.surface-hover : Theme.overlay-idle;
+                    border-width: 1px;
+                    border-color: Theme.control-border.with-alpha(0.4);
+                    cancel-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.dismissed(); }
+                    }
+                    Text {
+                        text: @tr("Cancel");
+                        color: Theme.text-secondary;
+                        font-size: Theme.font-size-md;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+}

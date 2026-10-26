@@ -1,0 +1,355 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { ThemeFrame } from "../../../ui/common/frame.slint";
+
+component Action inherits Rectangle {
+    in property <string> text;
+    in property <bool> active;
+    in property <bool> enabled: true;
+    callback clicked();
+    preferred-width: label.preferred-width + Theme.spacing-lg * 2;
+    height: Theme.icon-size + Theme.default-spacing * 2;
+    border-radius: Theme.radius-sm;
+    border-width: root.active ? 1px : 0px;
+    border-color: Theme.accent;
+    background: root.active ? Theme.surface-active : touch.has-hover || action-keys.has-focus ? Theme.surface-hover : transparent;
+    animate background { duration: Theme.hover-duration * 1ms; easing: ease-out; }
+    opacity: root.enabled ? 1 : 0.4;
+    accessible-role: button; accessible-label: root.text; accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.clicked(); } }
+    forward-focus: action-keys;
+    label := Text { text: root.text; color: Theme.text-primary; font-size: Theme.font-size-md; horizontal-alignment: center; vertical-alignment: center; }
+    action-keys := FocusScope { enabled: root.enabled; key-pressed(event) => { if event.text == Key.Return || event.text == " " { root.clicked(); return accept; } reject } }
+    touch := TouchArea { enabled: root.enabled; mouse-cursor: pointer; clicked => { action-keys.focus(); root.clicked(); } }
+}
+
+export component CaptureWindow inherits Window {
+    title: "Rix Capture";
+    background: Theme.window-background;
+    default-font-family: Theme.font-family;
+    default-font-size: Theme.font-size-md;
+    preferred-width: 1080px; preferred-height: 740px;
+    min-width: root.phase == 2 ? 760px : 0px; min-height: root.phase == 2 ? 480px : 0px;
+    no-frame: root.phase != 2;
+    in property <image> frozen;
+    in property <image> result;
+    in-out property <int> phase: 1;
+    in-out property <int> tool: 0;
+    in-out property <bool> native-size: false;
+    in-out property <float> zoom-factor: 1;
+    in-out property <color> ink: #ff545f;
+    in-out property <float> ink-width: 3;
+    in property <string> stroke-preview;
+    in property <bool> has-image;
+    private property <int> dialog-kind;
+    out property <bool> dialog-open: root.dialog-kind != 0;
+    in-out property <string> open-path;
+    private property <string> annotation-text;
+    private property <float> text-x; private property <float> text-y;
+    in-out property <float> text-size: 24;
+    out property <float> preview-zoom: root.has-image ? canvas.zoom : 1;
+    in property <bool> busy;
+    in property <bool> undo-available;
+    in property <bool> redo-available;
+    in property <int> pixel-width;
+    in property <int> pixel-height;
+    in property <string> status;
+    in property <string> monitor;
+    in property <[string]> monitors;
+    in property <int> monitor-index;
+    in-out property <string> save-path;
+    callback cancel();
+    callback new-capture(); callback open(string); callback add-text(float, float, string, float);
+    callback screen();
+    callback select-output(int);
+    callback selection(float, float, float, float, float, float);
+    callback stroke(int, float, float, float, float);
+    callback undo(); callback redo(); callback copy(); callback save(string);
+    public function focus-controls() { keys.focus(); }
+    public function zoom-to(value: float) { root.native-size = true; root.zoom-factor = Math.clamp(value, 0.1, 8); }
+    public function show-save() { root.dialog-kind = 1; }
+    public function show-open() { root.dialog-kind = 2; }
+    forward-focus: keys;
+    keys := FocusScope {
+        width: 100%; height: 100%;
+        key-pressed(event) => {
+            if event.text == Key.Escape {
+                if root.dialog-kind != 0 { root.dialog-kind = 0; keys.focus(); }
+                else if root.phase < 2 { root.cancel(); }
+                else { root.tool = 0; root.stroke(3, 0, 0, 1, 1); }
+                return accept;
+            }
+            if root.phase == 2 && event.modifiers.control && (event.text == "n" || event.text == "N") { root.new-capture(); return accept; }
+            if root.phase == 2 && event.modifiers.control && (event.text == "o" || event.text == "O") { root.show-open(); return accept; }
+            if root.phase == 2 && root.has-image && event.modifiers.control && (event.text == "s" || event.text == "S") { root.show-save(); return accept; }
+            if root.phase == 2 && root.has-image && event.modifiers.control && (event.text == "0") { root.native-size = false; return accept; }
+            if root.phase == 2 && root.has-image && event.modifiers.control && (event.text == "1") { root.zoom-to(1); return accept; }
+            if root.phase == 2 && root.has-image && !event.modifiers.control && !event.modifiers.alt {
+                if event.text == "v" || event.text == "V" { root.tool = 0; return accept; }
+                if event.text == "t" || event.text == "T" { root.tool = 8; return accept; }
+                if event.text == "p" || event.text == "P" { root.tool = 1; return accept; }
+                if event.text == "m" || event.text == "M" { root.tool = 2; return accept; }
+                if event.text == "a" || event.text == "A" { root.tool = 3; return accept; }
+                if event.text == "r" || event.text == "R" { root.tool = 6; return accept; }
+                if event.text == "x" || event.text == "X" { root.tool = 4; return accept; }
+                if event.text == "b" || event.text == "B" { root.tool = 5; return accept; }
+                if event.text == "k" || event.text == "K" { root.tool = 7; return accept; }
+            }
+            if root.phase == 2 && event.modifiers.control && (event.text == "z" || event.text == "Z") { if event.modifiers.shift { root.redo(); } else { root.undo(); } return accept; }
+            if root.phase == 2 && event.modifiers.control && (event.text == "y" || event.text == "Y") { root.redo(); return accept; }
+            if root.phase == 2 && event.modifiers.control && (event.text == "c" || event.text == "C") { root.copy(); return accept; }
+            reject
+        }
+    if root.phase < 2 : frozen-view := Rectangle {
+        width: 100%; height: 100%;
+        Image { source: root.frozen; width: 100%; height: 100%; image-fit: fill; }
+        Rectangle { width: 100%; height: 100%; background: #00000050; }
+        private property <length> sx: Math.min(select.start-x, select.end-x);
+        private property <length> sy: Math.min(select.start-y, select.end-y);
+        private property <length> sw: Math.abs(select.end-x - select.start-x);
+        private property <length> sh: Math.abs(select.end-y - select.start-y);
+        if select.pressed : Rectangle {
+            x: parent.sx; y: parent.sy; width: parent.sw; height: parent.sh;
+            clip: true;
+            Image { source: root.frozen; x: -parent.x; y: -parent.y; width: root.width; height: root.height; image-fit: fill; }
+            Rectangle { width: 100%; height: 100%; background: transparent; border-width: 2px; border-color: Theme.accent; }
+        }
+        select := TouchArea {
+            enabled: root.phase == 1 && !root.busy;
+            mouse-cursor: crosshair;
+            private property <length> start-x;
+            private property <length> start-y;
+            private property <length> end-x;
+            private property <length> end-y;
+            pointer-event(event) => {
+                if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                    keys.focus(); self.start-x = self.mouse-x; self.start-y = self.mouse-y; self.end-x = self.mouse-x; self.end-y = self.mouse-y;
+                }
+                if event.button == PointerEventButton.left && event.kind == PointerEventKind.up {
+                    root.selection(self.start-x / 1px, self.start-y / 1px, self.mouse-x / 1px, self.mouse-y / 1px, self.width / 1px, self.height / 1px);
+                }
+            }
+            moved => { if self.pressed { self.end-x = self.mouse-x; self.end-y = self.mouse-y; } }
+        }
+        capture-toolbar := Rectangle {
+            visible: !select.pressed;
+            x: (parent.width - self.width) / 2; y: Theme.spacing-xl;
+            width: Math.min(parent.width - Theme.spacing-xl * 2, toolbar.preferred-width + Theme.default-spacing * 2);
+            height: Theme.icon-size + Theme.default-spacing * 4;
+            border-radius: Theme.menu-frame.available ? Theme.menu-frame.corner-radius * 1px : Theme.radius-md;
+            border-width: Theme.menu-frame.available ? 0px : 1px;
+            border-color: Theme.border-highlight;
+            background: Theme.menu-frame.available ? transparent : Theme.menu-bg;
+            if Theme.menu-frame.available: ThemeFrame { width: 100%; height: 100%; skin: Theme.menu-frame; material-opacity: Theme.material-opacity; }
+            toolbar := HorizontalLayout {
+                padding: Theme.default-spacing; spacing: Theme.default-spacing; alignment: center;
+                Text { text: "Rix Capture"; color: Theme.text-primary; font-size: Theme.font-size-lg; font-weight: 600; vertical-alignment: center; }
+                Rectangle { width: 1px; height: Theme.icon-size; vertical-stretch: 0; background: Theme.divider; }
+                Action { text: "Area"; active: root.phase == 1; enabled: !root.busy; clicked => { root.phase = 1; keys.focus(); } }
+                Action { text: "Screen"; enabled: !root.busy; clicked => { root.screen(); } }
+                if root.monitors.length > 1: ComboBox { model: root.monitors; current-index: root.monitor-index; enabled: !root.busy; selected(value) => { root.select-output(self.current-index); } }
+                Action { text: "Close · Esc"; clicked => { root.cancel(); } }
+            }
+        }
+        if !select.pressed: Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: capture-toolbar.y + capture-toolbar.height + Theme.default-spacing;
+            width: hint.preferred-width + Theme.spacing-lg * 2; height: Theme.font-size-sm + Theme.default-spacing * 2;
+            border-radius: Theme.radius-sm; background: #0000009c;
+            hint := Text { text: root.busy ? "Capturing screenshot…" : root.status != "" ? root.status : "Select area — screenshot will be copied immediately"; color: white; font-size: Theme.font-size-sm; horizontal-alignment: center; vertical-alignment: center; }
+        }
+        if select.pressed: Rectangle {
+            x: Math.clamp(parent.sx + parent.sw - self.width, Theme.default-spacing, parent.width - self.width - Theme.default-spacing);
+            y: Math.clamp(parent.sy + parent.sh + Theme.default-spacing, Theme.default-spacing, parent.height - self.height - Theme.default-spacing);
+            width: size-label.preferred-width + Theme.spacing-lg * 2; height: Theme.font-size-sm + Theme.default-spacing * 2;
+            border-radius: Theme.radius-sm; background: Theme.menu-bg; border-width: 1px; border-color: Theme.accent;
+            size-label := Text { text: round(frozen-view.sw / root.width * root.frozen.width) + " × " + round(frozen-view.sh / root.height * root.frozen.height) + " px"; color: Theme.text-primary; font-size: Theme.font-size-sm; horizontal-alignment: center; vertical-alignment: center; }
+        }
+    }
+    editor-layout := VerticalLayout {
+        visible: root.phase == 2;
+        spacing: 0px;
+        header := Rectangle {
+            height: Theme.menu-action-size + Theme.spacing-xl * 2;
+            background: Theme.sidebar-background;
+            Rectangle { y: parent.height - 1px; height: 1px; width: 100%; background: Theme.divider; }
+            HorizontalLayout {
+                padding: Theme.spacing-xl; spacing: Theme.default-spacing;
+                Text { text: "Rix Capture"; color: Theme.text-primary; font-size: Theme.font-size-xl; font-weight: 600; vertical-alignment: center; }
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+                Action { text: "New · Ctrl+N"; enabled: !root.busy; clicked => { root.new-capture(); } }
+                Action { text: "Open"; enabled: !root.busy; clicked => { root.show-open(); } }
+                Action { text: "Copy"; enabled: root.has-image && !root.busy; clicked => { root.copy(); } }
+                Action { text: "Save"; active: true; enabled: root.has-image && !root.busy; clicked => { root.show-save(); } }
+            }
+        }
+        HorizontalLayout {
+            spacing: 0px;
+            tools := Rectangle {
+                width: 142px; background: Theme.sidebar-background;
+                Rectangle { x: parent.width - 1px; width: 1px; height: 100%; background: Theme.divider; }
+                ScrollView {
+                    width: 100%; height: 100%;
+                    VerticalLayout {
+                        padding: Theme.default-spacing; spacing: Theme.spacing-xs;
+                        alignment: start;
+                        for label[i] in ["Pointer · V", "Pen · P", "Marker · M", "Arrow · A", "Hide · X", "Blur · B", "Frame · R", "Crop · K", "Text · T"]: Action {
+                            text: label; active: root.tool == i; enabled: root.has-image && !root.busy;
+                            clicked => { root.tool = i; keys.focus(); }
+                        }
+                        Rectangle { height: Theme.default-spacing; background: transparent; }
+                        Text { text: "Color"; color: Theme.text-muted; font-size: Theme.font-size-sm; }
+                        HorizontalLayout {
+                            spacing: Theme.spacing-xs;
+                            for c in [#ff545f, #facc15, #34d399, #60a5fa, #ffffff]: Rectangle {
+                                width: 20px; height: 20px; border-radius: 10px; background: c;
+                                border-width: root.ink == c ? 2px : 1px; border-color: root.ink == c ? Theme.accent : Theme.control-border;
+                                accessible-role: button; accessible-label: "Markup color";
+                                accessible-action-default => { root.ink = c; }
+                                forward-focus: color-keys;
+                                color-keys := FocusScope { key-pressed(event) => { if event.text == Key.Return || event.text == " " { root.ink = c; return accept; } reject } }
+                                TouchArea { enabled: !root.busy; mouse-cursor: pointer; clicked => { color-keys.focus(); root.ink = c; } }
+                            }
+                        }
+                        Text { text: "Thickness · " + round(root.ink-width) + " px"; color: Theme.text-muted; font-size: Theme.font-size-sm; }
+                        Slider { minimum: 1; maximum: 12; step: 1; value <=> root.ink-width; enabled: root.has-image && !root.busy; }
+                    }
+                }
+            }
+            VerticalLayout {
+                spacing: 0px;
+                editor-toolbar := Rectangle {
+                    height: Theme.menu-action-size + Theme.default-spacing * 2;
+                    background: Theme.window-background;
+                    HorizontalLayout {
+                        padding-left: Theme.spacing-lg; padding-right: Theme.spacing-lg;
+                        padding-top: Theme.default-spacing; padding-bottom: Theme.default-spacing;
+                        spacing: Theme.spacing-xs;
+                        Action { text: "↶"; enabled: root.undo-available && !root.busy; clicked => { root.undo(); } accessible-label: "Undo · Ctrl+Z"; }
+                        Action { text: "↷"; enabled: root.redo-available && !root.busy; clicked => { root.redo(); } accessible-label: "Redo · Ctrl+Shift+Z"; }
+                        Rectangle { horizontal-stretch: 1; background: transparent; }
+                        Action { text: "−"; enabled: root.has-image; clicked => { root.zoom-to(root.preview-zoom / 1.25); } accessible-label: "Zoom out"; }
+                        Action { text: "Fit"; active: !root.native-size; enabled: root.has-image; clicked => { root.native-size = false; } }
+                        Action { text: "100%"; active: root.native-size && root.zoom-factor == 1; enabled: root.has-image; clicked => { root.zoom-to(1); } }
+                        Action { text: "+"; enabled: root.has-image; clicked => { root.zoom-to(root.preview-zoom * 1.25); } accessible-label: "Zoom in"; }
+                    }
+                }
+                canvas := Rectangle {
+                    vertical-stretch: 1; min-height: 100px;
+                    background: Theme.surface; clip: true;
+                    private property <float> ratio: root.pixel-height > 0 ? root.pixel-width / root.pixel-height : 1;
+                    private property <length> image-w: root.native-size ? root.pixel-width * 1phx * root.zoom-factor : Math.max(1px, Math.min(root.pixel-width * 1phx, Math.min(self.width - 32px, (self.height - 32px) * self.ratio)));
+                    private property <length> image-h: self.image-w / self.ratio;
+                    private property <bool> full-size: root.native-size;
+                    private property <float> zoom: self.image-w / Math.max(1phx, root.pixel-width * 1phx);
+                    changed full-size => { editor-view.viewport-x = 0px; editor-view.viewport-y = 0px; }
+                    editor-view := ScrollView {
+                        visible: root.has-image;
+                        width: parent.width; height: parent.height;
+                        viewport-width: Math.max(self.visible-width, canvas.image-w + 32px);
+                        viewport-height: Math.max(self.visible-height, canvas.image-h + 32px);
+                        mouse-drag-pan-enabled: root.tool == 0;
+                        picture := Image {
+                            x: round(Math.max(16px, (editor-view.visible-width - canvas.image-w) / 2) / 1phx) * 1phx;
+                            y: round(Math.max(16px, (editor-view.visible-height - canvas.image-h) / 2) / 1phx) * 1phx;
+                            width: canvas.image-w; height: canvas.image-h;
+                            source: root.result; image-fit: fill;
+                            image-rendering: root.native-size && root.zoom-factor >= 1 ? pixelated : smooth;
+                        }
+                        if root.stroke-preview != "": Path {
+                            x: picture.x; y: picture.y; width: picture.width; height: picture.height;
+                            viewbox-width: root.pixel-width; viewbox-height: root.pixel-height;
+                            commands: root.stroke-preview; fill: transparent;
+                            stroke: root.tool == 2 ? root.ink.with-alpha(0.42) : root.ink;
+                            stroke-width: root.ink-width * canvas.zoom * 1phx * (root.tool == 2 ? 4 : 1);
+                            stroke-line-cap: round; stroke-line-join: round;
+                        }
+                        if draw.pressed && root.tool >= 4 && root.tool <= 7 && root.tool != 6: Rectangle {
+                            x: picture.x + Math.min(draw.start-x, draw.end-x);
+                            y: picture.y + Math.min(draw.start-y, draw.end-y);
+                            width: Math.abs(draw.end-x - draw.start-x); height: Math.abs(draw.end-y - draw.start-y);
+                            background: root.tool == 4 ? #181b24 : Theme.accent.with-alpha(0.2);
+                            border-width: 1px; border-color: Theme.accent;
+                        }
+                        draw := TouchArea {
+                            x: picture.x; y: picture.y; width: picture.width; height: picture.height;
+                            enabled: !root.busy && root.tool != 0;
+                            mouse-cursor: crosshair;
+                            private property <length> start-x; private property <length> start-y;
+                            private property <length> end-x; private property <length> end-y;
+                            pointer-event(event) => {
+                                if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                                    keys.focus(); self.start-x = self.mouse-x; self.start-y = self.mouse-y; self.end-x = self.mouse-x; self.end-y = self.mouse-y;
+                                    if root.tool != 8 { root.stroke(0, self.mouse-x / 1px, self.mouse-y / 1px, self.width / 1px, self.height / 1px); }
+                                }
+                                if event.button == PointerEventButton.left && event.kind == PointerEventKind.up { if root.tool == 8 { root.text-x = self.mouse-x / self.width * root.pixel-width; root.text-y = self.mouse-y / self.height * root.pixel-height; root.annotation-text = ""; root.dialog-kind = 3; } else { root.stroke(2, self.mouse-x / 1px, self.mouse-y / 1px, self.width / 1px, self.height / 1px); } }
+                                if event.kind == PointerEventKind.cancel { root.stroke(3, 0, 0, 1, 1); }
+                            }
+                            moved => { if self.pressed { self.end-x = self.mouse-x; self.end-y = self.mouse-y; root.stroke(1, self.mouse-x / 1px, self.mouse-y / 1px, self.width / 1px, self.height / 1px); } }
+                            scroll-event(event) => { if self.pressed { return accept; } reject }
+                        }
+                    }
+                    if !root.has-image: VerticalLayout {
+                        alignment: center; padding: Theme.spacing-xl; spacing: Theme.spacing-lg;
+                        Text { text: "Screenshot"; color: Theme.text-primary; font-size: Theme.font-size-xl * 1.4; horizontal-alignment: center; }
+                        Text { text: "Select a screen area or open an image for markup"; color: Theme.text-secondary; horizontal-alignment: center; wrap: word-wrap; }
+                        HorizontalLayout { alignment: center; spacing: Theme.default-spacing; Action { text: "Take Screenshot"; active: true; clicked => { root.new-capture(); } } Action { text: "Open Image"; clicked => { root.show-open(); } } }
+                    }
+                }
+            }
+        }
+        footer := Rectangle {
+            height: Theme.font-size-sm + Theme.spacing-xl * 2;
+            background: Theme.window-background;
+            Rectangle { height: 1px; width: 100%; background: Theme.divider; }
+            HorizontalLayout {
+                padding: Theme.spacing-xl; padding-right: 250px; spacing: Theme.default-spacing;
+                Text { text: root.busy ? "Processing…" : root.status; color: Theme.text-secondary; font-size: Theme.font-size-sm; overflow: elide; vertical-alignment: center; horizontal-stretch: 1; }
+
+            }
+            Text {
+                visible: root.has-image;
+                x: parent.width - 230px - Theme.spacing-xl; y: Theme.spacing-xl;
+                width: 230px; height: Theme.font-size-sm;
+                horizontal-alignment: right;
+                text: root.pixel-width + " × " + root.pixel-height + " px · " + round(root.preview-zoom * 100) + "%";
+                color: Theme.text-muted; font-size: Theme.font-size-sm;
+            }
+        }
+    }
+    if root.phase == 2 && root.dialog-kind != 0: Rectangle {
+        width: 100%; height: 100%; background: Theme.shadow.with-alpha(0.55);
+        TouchArea { clicked => { root.dialog-kind = 0; keys.focus(); } }
+        dialog := Rectangle {
+            x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+            width: Math.min(560px, parent.width - Theme.spacing-xl * 4);
+            height: contents.preferred-height + Theme.spacing-xl * 2;
+            border-radius: Theme.radius-lg; border-width: 1px; border-color: Theme.border-highlight; background: Theme.menu-bg;
+            TouchArea {}
+            contents := VerticalLayout {
+                padding: Theme.spacing-xl; spacing: Theme.spacing-lg;
+                Text { text: root.dialog-kind == 1 ? "Save PNG" : root.dialog-kind == 2 ? "Open Image" : "Add Caption"; color: Theme.text-primary; font-size: Theme.font-size-xl; font-weight: 600; }
+                Text { text: root.dialog-kind == 1 ? "Original resolution and markup are preserved without loss of quality. Existing files are not overwritten." : root.dialog-kind == 2 ? "Specify path to PNG, JPEG, or another image." : "Text will be added at the selected point in original resolution."; color: Theme.text-secondary; font-size: Theme.font-size-sm; wrap: word-wrap; }
+                if root.dialog-kind == 1: save-input := LineEdit { init => { self.focus(); } text <=> root.save-path; placeholder-text: "Path to PNG"; accepted => { if root.save-path != "" { root.save(root.save-path); root.dialog-kind = 0; } } }
+                if root.dialog-kind == 2: open-input := LineEdit { init => { self.focus(); } text <=> root.open-path; placeholder-text: "Path to image"; accepted => { if root.open-path != "" { root.open(root.open-path); root.dialog-kind = 0; } } }
+                if root.dialog-kind == 3: LineEdit { init => { self.focus(); } text <=> root.annotation-text; placeholder-text: "Caption text"; accepted => { if root.annotation-text != "" { root.add-text(root.text-x, root.text-y, root.annotation-text, root.text-size); root.dialog-kind = 0; } } }
+                if root.dialog-kind == 3: HorizontalLayout { spacing: Theme.default-spacing; Text { text: round(root.text-size) + " px"; color: Theme.text-secondary; vertical-alignment: center; } Slider { minimum: 12; maximum: 96; step: 1; value <=> root.text-size; } }
+                HorizontalLayout {
+                    alignment: end; spacing: Theme.default-spacing;
+                    Action { text: "Cancel"; clicked => { root.dialog-kind = 0; keys.focus(); } }
+                    Action { text: root.dialog-kind == 1 ? "Save" : root.dialog-kind == 2 ? "Open" : "Add"; active: true; enabled: !root.busy && (root.dialog-kind == 1 ? root.save-path != "" : root.dialog-kind == 2 ? root.open-path != "" : root.annotation-text != ""); clicked => { if root.dialog-kind == 1 { root.save(root.save-path); } else if root.dialog-kind == 2 { root.open(root.open-path); } else { root.add-text(root.text-x, root.text-y, root.annotation-text, root.text-size); } root.dialog-kind = 0; } }
+                }
+            }
+        }
+    }
+
+    }
+}
+
+import { Palette, ScrollView } from "std-widgets.slint";
+import { ComboBox } from "../../../ui/common/combo_box.slint";
+import { LineEdit } from "../../../ui/common/line_edit.slint";
+import { Slider } from "../../../ui/common/controls.slint";
+
+export { Theme } from "../../../ui/common/theme.slint";
+export { SkinFrame, SkinRenderer } from "../../../ui/common/frame.slint";
+export { Palette } from "std-widgets.slint";

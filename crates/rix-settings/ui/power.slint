@@ -1,0 +1,163 @@
+import { Theme } from "../../../ui/common/theme.slint";
+import { Slider, ToggleSwitch } from "../../../ui/common/controls.slint";
+import { Button } from "std-widgets.slint";
+import { ComboBox } from "../../../ui/common/combo_box.slint";
+import { SettingsCard, SettingsRow, SettingsDivider, ValueBadge } from "card.slint";
+
+export global PowerPreferences {
+    in-out property <[string]> plans;
+    in-out property <int> editing;
+    in-out property <int> selected;
+    in-out property <int> battery;
+    in-out property <bool> automatic;
+    in-out property <[string]> profiles;
+    in-out property <int> profile;
+    in-out property <int> dim-minutes;
+    in-out property <int> dim-percent: 35;
+    in-out property <int> off-minutes;
+    in-out property <int> lock-minutes;
+    in-out property <int> sleep-minutes;
+    in-out property <int> sleep-action;
+    in-out property <bool> inhibitors;
+    in-out property <bool> external-lid;
+    in-out property <bool> native;
+    in-out property <bool> can-suspend;
+    in-out property <bool> can-hibernate;
+    in-out property <string> source;
+    in-out property <string> actual-profile;
+    in-out property <string> error;
+    callback choose(int);
+    callback apply();
+}
+
+component DelaySliderRow inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle: "";
+    in-out property <int> minutes;
+    min-height: 44px;
+    preferred-height: row-layout.preferred-height;
+
+    row-layout := HorizontalLayout {
+        spacing: 20px;
+        VerticalLayout {
+            horizontal-stretch: 1; alignment: center; spacing: 2px;
+            Text { text: root.title; color: Theme.text-primary; font-size: 13.5px; font-weight: 500; }
+            if root.subtitle != "": Text { text: root.subtitle; color: Theme.text-secondary; font-size: 12px; wrap: word-wrap; }
+        }
+        VerticalLayout {
+            horizontal-stretch: 0; alignment: center;
+            HorizontalLayout {
+                spacing: 10px; alignment: end;
+                Slider {
+                    minimum: 0; maximum: 240; step: 5; value: root.minutes; min-width: 160px;
+                    changed(v) => { root.minutes = round(v); }
+                }
+                ValueBadge {
+                    text: root.minutes == 0 ? @tr("Never") : root.minutes + " " + @tr("min");
+                }
+            }
+        }
+    }
+}
+
+export component PowerView inherits Rectangle {
+    in property <bool> busy;
+    background: transparent;
+    preferred-height: content.preferred-height;
+    content := VerticalLayout {
+        spacing: 16px;
+
+        SettingsCard {
+            title: @tr("Active power plan");
+            subtitle: @tr("Choose energy profile and automatic battery optimization");
+
+            SettingsRow {
+                title: @tr("Active profile");
+                subtitle: PowerPreferences.source;
+                ComboBox { model: PowerPreferences.plans; current-index <=> PowerPreferences.selected; min-width: 195px; }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("Battery power plan");
+                subtitle: @tr("Automatically switch to a power-saving profile when on battery");
+                ToggleSwitch { checked <=> PowerPreferences.automatic; }
+            }
+
+            if PowerPreferences.automatic: SettingsDivider {}
+
+            if PowerPreferences.automatic: SettingsRow {
+                title: @tr("On battery profile");
+                subtitle: @tr("Profile activated on unplugging power adapter");
+                ComboBox { model: PowerPreferences.plans; current-index <=> PowerPreferences.battery; min-width: 195px; }
+            }
+        }
+
+        SettingsCard {
+            title: @tr("Display and sleep timeouts");
+            subtitle: @tr("Screen dimming, display power off and system sleep delays");
+
+            DelaySliderRow {
+                title: @tr("Dim screen when inactive");
+                subtitle: @tr("Reduce brightness before turning off display");
+                minutes <=> PowerPreferences.dim-minutes;
+            }
+
+            SettingsDivider {}
+
+            DelaySliderRow {
+                title: @tr("Turn off display after");
+                subtitle: @tr("Power down connected monitors to conserve power");
+                minutes <=> PowerPreferences.off-minutes;
+            }
+
+            SettingsDivider {}
+
+            DelaySliderRow {
+                title: @tr("Lock screen after display off");
+                subtitle: @tr("Require password after screen turns off");
+                minutes <=> PowerPreferences.lock-minutes;
+            }
+
+            SettingsDivider {}
+
+            DelaySliderRow {
+                title: @tr("Put computer to sleep after");
+                subtitle: @tr("Enter low-power suspend or hibernate state");
+                minutes <=> PowerPreferences.sleep-minutes;
+            }
+
+            if PowerPreferences.sleep-minutes > 0: SettingsDivider {}
+
+            if PowerPreferences.sleep-minutes > 0: SettingsRow {
+                title: @tr("Sleep action");
+                subtitle: @tr("Select suspend to RAM or hibernate to disk");
+                ComboBox { model: [@tr("Suspend"), @tr("Hibernate")]; current-index <=> PowerPreferences.sleep-action; min-width: 195px; }
+            }
+        }
+
+        SettingsCard {
+            title: @tr("Behavior and laptop lid");
+            subtitle: @tr("Idle inhibit policies and lid closure");
+
+            SettingsRow {
+                title: @tr("Respect idle inhibitors");
+                subtitle: @tr("Prevent sleep when media players or downloads request keep-awake");
+                ToggleSwitch { checked <=> PowerPreferences.inhibitors; }
+            }
+
+            SettingsDivider {}
+
+            SettingsRow {
+                title: @tr("External display lid action");
+                subtitle: @tr("Keep computer running when lid is closed with external monitor");
+                ToggleSwitch { checked <=> PowerPreferences.external-lid; }
+            }
+        }
+
+        if PowerPreferences.error != "": Text {
+            text: PowerPreferences.error; color: Theme.accent; wrap: word-wrap;
+        }
+    }
+}

@@ -1,0 +1,53 @@
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { Button } from "std-widgets.slint";
+export struct PreviewItem { id: int, title: string, image: image, failed: bool, active: bool }
+export component TaskPreviews inherits Rectangle {
+    in property <[PreviewItem]> items;
+    in-out property <int> page;
+    in property <int> capacity;
+    callback activate(int);
+    callback close(int);
+    VerticalLayout {
+        spacing: Theme.default-spacing;
+        if root.items.length > root.capacity: HorizontalLayout {
+            height: Theme.preview-header-height;
+            Button { text: "‹"; enabled: root.page > 0; clicked => { root.page -= 1; } }
+            Text { text: (root.page + 1) + " / " + ceil(root.items.length / root.capacity); color: Theme.text-secondary; horizontal-alignment: center; vertical-alignment: center; horizontal-stretch: 1; }
+            Button { text: "›"; enabled: (root.page + 1) * root.capacity < root.items.length; clicked => { root.page += 1; } }
+        }
+        Rectangle {
+            min-height: Theme.preview-header-height + Theme.preview-height;
+            for item[index] in root.items: Rectangle {
+                x: (index - root.page * root.capacity) * (Theme.preview-width + Theme.default-spacing);
+                width: Theme.preview-width; height: parent.height;
+                visible: index >= root.page * root.capacity && index < (root.page + 1) * root.capacity;
+                if index >= root.page * root.capacity && index < (root.page + 1) * root.capacity: Rectangle {
+                    width: parent.width; height: parent.height;
+                    border-radius: Theme.radius-sm;
+                    background: touch.has-hover ? Theme.surface-hover : item.active ? Theme.surface-active : transparent;
+                    animate background { duration: Theme.hover-duration * 1ms; }
+                    touch := TouchArea { clicked => { root.activate(item.id); } }
+                    VerticalLayout {
+                        spacing: 0px;
+                        HorizontalLayout {
+                            height: Theme.preview-header-height; spacing: Theme.default-spacing;
+                            Text { text: item.title; overflow: elide; color: Theme.text-primary; font-size: Theme.font-size-md; vertical-alignment: center; horizontal-stretch: 1; }
+                            Rectangle {
+                                width: Theme.menu-action-size; height: Theme.menu-action-size;
+                                border-radius: Theme.radius-sm; background: close-touch.has-hover ? Theme.danger-bg : transparent;
+                                Image { source: Icons.close; colorize: Theme.text-primary; width: Theme.icon-size-sm; height: self.width; x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2; }
+                                close-touch := TouchArea { clicked => { root.close(item.id); } }
+                            }
+                        }
+                        Rectangle {
+                            height: Theme.preview-height;
+                            Image { source: item.image; width: 100%; height: 100%; image-fit: contain; }
+                            if item.failed: Text { text: @tr("Preview unavailable"); color: Theme.text-muted; horizontal-alignment: center; vertical-alignment: center; width: 100%; height: 100%; }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
